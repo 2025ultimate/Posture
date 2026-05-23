@@ -43,6 +43,21 @@ const FOREGROUND_DETECT_INTERVAL_MS = 100;
 const BACKGROUND_DETECT_INTERVAL_MS = 500;
 const ALERT_TONE_STORAGE_KEY = "postureguard.alertTone";
 
+// In a packaged Electron app the page is loaded via file:// — in that case
+// prefer the locally bundled WASM + model so the app works offline.
+// In dev/web fall back to the CDN.
+const WASM_CDN = "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.35/wasm";
+const MODEL_CDN =
+  "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/latest/pose_landmarker_lite.task";
+const WASM_LOCAL = "./wasm";
+const MODEL_LOCAL = "./models/pose_landmarker_lite.task";
+
+function isStandalone(): boolean {
+  if (typeof window === "undefined") return false;
+  if (window.electronAPI?.isElectron) return true;
+  return window.location.protocol === "file:";
+}
+
 function loadStoredTone(): AlertTone {
   if (typeof window === "undefined") return "beep";
   const stored = window.localStorage.getItem(ALERT_TONE_STORAGE_KEY);
@@ -206,13 +221,11 @@ export function usePostureMonitor() {
     setState("loading");
     setError("");
     try {
-      const vision = await FilesetResolver.forVisionTasks(
-        "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.35/wasm"
-      );
+      const standalone = isStandalone();
+      const vision = await FilesetResolver.forVisionTasks(standalone ? WASM_LOCAL : WASM_CDN);
       landmarkerRef.current = await PoseLandmarker.createFromOptions(vision, {
         baseOptions: {
-          modelAssetPath:
-            "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/latest/pose_landmarker_lite.task",
+          modelAssetPath: standalone ? MODEL_LOCAL : MODEL_CDN,
           delegate: "GPU",
         },
         runningMode: "VIDEO",
