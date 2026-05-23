@@ -581,6 +581,160 @@ body {
   margin: 16px 0;
 }
 
+/* Habits card */
+.habits-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px 24px;
+}
+
+.habits-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.habit-row {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 10px 12px;
+  transition: border-color 0.2s, background 0.2s;
+}
+
+.habit-row-on {
+  border-color: rgba(59, 130, 246, 0.4);
+  background: rgba(59, 130, 246, 0.04);
+}
+
+.habit-row-top {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.habit-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.habit-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.habit-desc {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.habit-interval {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.habit-interval-input {
+  width: 50px;
+  padding: 5px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+  font-size: 13px;
+  font-family: inherit;
+  outline: none;
+  text-align: right;
+}
+
+.habit-interval-input:focus {
+  border-color: var(--blue);
+}
+
+.habit-interval-unit {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.habit-toggle {
+  position: relative;
+  display: inline-block;
+  width: 34px;
+  height: 20px;
+  flex-shrink: 0;
+}
+
+.habit-toggle input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.habit-toggle-slider {
+  position: absolute;
+  cursor: pointer;
+  inset: 0;
+  background: var(--border);
+  border-radius: 100px;
+  transition: background 0.2s;
+}
+
+.habit-toggle-slider::before {
+  content: "";
+  position: absolute;
+  height: 14px;
+  width: 14px;
+  left: 3px;
+  top: 3px;
+  background: #cbd5e1;
+  border-radius: 50%;
+  transition: transform 0.2s, background 0.2s;
+}
+
+.habit-toggle input:checked + .habit-toggle-slider {
+  background: var(--blue);
+}
+
+.habit-toggle input:checked + .habit-toggle-slider::before {
+  transform: translateX(14px);
+  background: #fff;
+}
+
+.habit-row-bottom {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px dashed var(--border);
+}
+
+.habit-next {
+  font-size: 11px;
+  color: #60a5fa;
+  font-variant-numeric: tabular-nums;
+}
+
+.habit-snooze {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  font-size: 11px;
+  padding: 3px 10px;
+  border-radius: 100px;
+  cursor: pointer;
+  font-family: inherit;
+  transition: color 0.2s, border-color 0.2s;
+}
+
+.habit-snooze:hover {
+  color: var(--text);
+  border-color: var(--blue);
+}
+
 /* Camera off placeholder */
 .camera-off-placeholder {
   background: rgba(10, 22, 40, 0.9);

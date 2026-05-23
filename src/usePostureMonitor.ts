@@ -385,6 +385,7 @@ export function usePostureMonitor() {
     alertTone,
     setAlertTone,
     playAlert,
+    speak,
     startMonitoring,
     stopMonitoring,
     startDutyCycle,

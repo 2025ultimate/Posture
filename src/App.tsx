@@ -1,14 +1,18 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { usePostureMonitor, ALERT_TONE_LABELS } from "./usePostureMonitor";
 import type { AlertTone } from "./usePostureMonitor";
+import { useHabitReminders, HABIT_INFO } from "./useHabitReminders";
+import type { HabitKey } from "./useHabitReminders";
 import "./App.css";
 
 export default function App() {
   const {
     videoRef, canvasRef, state, result, error, badDuration,
-    cameraPhase, dutyCycle, alertTone, setAlertTone, playAlert,
+    cameraPhase, dutyCycle, alertTone, setAlertTone, playAlert, speak,
     startMonitoring, stopMonitoring, startDutyCycle, stopDutyCycle,
   } = usePostureMonitor();
+
+  const { habits, setEnabled, setHabitInterval, snooze } = useHabitReminders(playAlert, speak);
 
   const [onMin, setOnMin] = useState(0.5);
   const [offMin, setOffMin] = useState(1);
@@ -254,6 +258,13 @@ export default function App() {
               </div>
             </div>
 
+            <HabitsCard
+              habits={habits}
+              setEnabled={setEnabled}
+              setHabitInterval={setHabitInterval}
+              snooze={snooze}
+            />
+
             <div className="tips-card">
               <h3 className="tips-title">Quick Tips</h3>
               <ul className="tips-list">
@@ -276,6 +287,84 @@ export default function App() {
         </div>
       </main>
     </div>
+  );
+}
+
+interface HabitsCardProps {
+  habits: ReturnType<typeof useHabitReminders>["habits"];
+  setEnabled: (key: HabitKey, enabled: boolean) => void;
+  setHabitInterval: (key: HabitKey, intervalMin: number) => void;
+  snooze: (key: HabitKey) => void;
+}
+
+function HabitsCard({ habits, setEnabled, setHabitInterval, snooze }: HabitsCardProps) {
+  const keys = Object.keys(HABIT_INFO) as HabitKey[];
+  return (
+    <div className="habits-card">
+      <h3 className="metrics-title">Habits &amp; Reminders</h3>
+      <div className="habits-list">
+        {keys.map((key) => {
+          const h = habits[key];
+          const info = HABIT_INFO[key];
+          return (
+            <div key={key} className={`habit-row ${h.enabled ? "habit-row-on" : ""}`}>
+              <div className="habit-row-top">
+                <label className="habit-toggle">
+                  <input
+                    type="checkbox"
+                    checked={h.enabled}
+                    onChange={(e) => setEnabled(key, e.target.checked)}
+                  />
+                  <span className="habit-toggle-slider" />
+                </label>
+                <div className="habit-info">
+                  <span className="habit-title">{info.title}</span>
+                  <span className="habit-desc">{info.description}</span>
+                </div>
+                <div className="habit-interval">
+                  <input
+                    type="number"
+                    min={1}
+                    max={240}
+                    step={1}
+                    value={h.intervalMin}
+                    onChange={(e) => setHabitInterval(key, Math.max(1, Number(e.target.value) || 1))}
+                    className="habit-interval-input"
+                    aria-label={`${info.title} interval in minutes`}
+                  />
+                  <span className="habit-interval-unit">min</span>
+                </div>
+              </div>
+              {h.enabled && h.nextFireAt !== null && (
+                <div className="habit-row-bottom">
+                  <NextDueLabel nextFireAt={h.nextFireAt} />
+                  <button className="habit-snooze" onClick={() => snooze(key)}>
+                    Reset
+                  </button>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function NextDueLabel({ nextFireAt }: { nextFireAt: number }) {
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setTick((n) => n + 1), 1000);
+    return () => clearInterval(id);
+  }, []);
+  const remainingMs = Math.max(0, nextFireAt - Date.now());
+  const totalSec = Math.round(remainingMs / 1000);
+  const min = Math.floor(totalSec / 60);
+  const sec = totalSec % 60;
+  return (
+    <span className="habit-next">
+      Next in {min > 0 ? `${min}m ${sec}s` : `${sec}s`}
+    </span>
   );
 }
 
