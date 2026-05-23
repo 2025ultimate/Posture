@@ -538,6 +538,49 @@ body {
   transform: translateY(-1px);
 }
 
+/* Tone selector */
+.tone-selector {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.tone-btn {
+  padding: 6px 14px;
+  border-radius: 100px;
+  font-size: 13px;
+  font-weight: 500;
+  font-family: inherit;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.tone-btn:hover {
+  border-color: var(--blue);
+  color: var(--text);
+}
+
+.tone-btn-active {
+  background: rgba(59, 130, 246, 0.15);
+  border-color: var(--blue);
+  color: #93c5fd;
+}
+
+.tone-preview-btn {
+  padding: 7px 16px;
+  font-size: 13px;
+}
+
+.settings-divider {
+  height: 1px;
+  background: var(--border);
+  margin: 16px 0;
+}
+
 /* Camera off placeholder */
 .camera-off-placeholder {
   background: rgba(10, 22, 40, 0.9);

@@ -5,6 +5,15 @@ import type { PostureResult } from "./postureAnalysis";
 
 export type MonitorState = "idle" | "loading" | "running" | "error";
 export type CameraPhase = "on" | "off" | "always";
+export type AlertTone = "beep" | "ding" | "chime" | "chirp" | "buzz";
+
+export const ALERT_TONE_LABELS: Record<AlertTone, string> = {
+  beep: "Beep",
+  ding: "Ding",
+  chime: "Chime",
+  chirp: "Chirp",
+  buzz: "Buzz",
+};
 
 export interface DutyCycleSettings {
   enabled: boolean;
@@ -32,6 +41,7 @@ export function usePostureMonitor() {
   const dutyCycleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const runningRef = useRef(false);
   const detectFnRef = useRef<(() => void) | null>(null);
+  const alertToneRef = useRef<AlertTone>("beep");
 
   const [state, setState] = useState<MonitorState>("idle");
   const [result, setResult] = useState<PostureResult | null>(null);
@@ -43,23 +53,70 @@ export function usePostureMonitor() {
     onDuration: 30,
     offDuration: 60,
   });
+  const [alertTone, setAlertTone] = useState<AlertTone>("beep");
   const badStartRef = useRef<number | null>(null);
 
-  const beep = useCallback((frequency = 880, duration = 0.3, volume = 0.4) => {
+  useEffect(() => {
+    alertToneRef.current = alertTone;
+  }, [alertTone]);
+
+  const playAlert = useCallback(() => {
     if (!audioCtxRef.current) {
       audioCtxRef.current = new AudioContext();
     }
     const ctx = audioCtxRef.current;
-    const oscillator = ctx.createOscillator();
-    const gainNode = ctx.createGain();
-    oscillator.connect(gainNode);
-    gainNode.connect(ctx.destination);
-    oscillator.type = "sine";
-    oscillator.frequency.setValueAtTime(frequency, ctx.currentTime);
-    gainNode.gain.setValueAtTime(volume, ctx.currentTime);
-    gainNode.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
-    oscillator.start(ctx.currentTime);
-    oscillator.stop(ctx.currentTime + duration);
+
+    const tone = (freq: number, dur: number, vol: number, type: OscillatorType = "sine", startOffset = 0) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.type = type;
+      osc.frequency.setValueAtTime(freq, ctx.currentTime + startOffset);
+      gain.gain.setValueAtTime(vol, ctx.currentTime + startOffset);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + startOffset + dur);
+      osc.start(ctx.currentTime + startOffset);
+      osc.stop(ctx.currentTime + startOffset + dur + 0.01);
+    };
+
+    switch (alertToneRef.current) {
+      case "beep":
+        tone(880, 0.25, 0.5);
+        tone(660, 0.25, 0.4, "sine", 0.3);
+        break;
+      case "ding":
+        // Bell-like: pure sine, long slow decay
+        tone(1047, 0.9, 0.6);
+        tone(2093, 0.5, 0.15, "sine", 0.01);
+        break;
+      case "chime":
+        // C-E-G ascending musical chime
+        tone(523, 0.35, 0.5);
+        tone(659, 0.35, 0.45, "sine", 0.2);
+        tone(784, 0.55, 0.4, "sine", 0.4);
+        break;
+      case "chirp": {
+        // Ascending frequency sweep
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.type = "sine";
+        osc.frequency.setValueAtTime(400, ctx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(900, ctx.currentTime + 0.18);
+        gain.gain.setValueAtTime(0.5, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.22);
+        osc.start(ctx.currentTime);
+        osc.stop(ctx.currentTime + 0.23);
+        break;
+      }
+      case "buzz":
+        // Three short square-wave pulses
+        tone(300, 0.08, 0.45, "square");
+        tone(300, 0.08, 0.45, "square", 0.15);
+        tone(300, 0.08, 0.45, "square", 0.3);
+        break;
+    }
   }, []);
 
   const speak = useCallback((text: string) => {
@@ -71,6 +128,17 @@ export function usePostureMonitor() {
     window.speechSynthesis.cancel();
     window.speechSynthesis.speak(utterance);
   }, []);
+
+  const fireAlerts = useCallback((elapsed: number, now: number) => {
+    if (now - lastBeepRef.current > BAD_POSTURE_BEEP_INTERVAL_MS) {
+      lastBeepRef.current = now;
+      playAlert();
+    }
+    if (elapsed > VOICE_ANNOUNCE_THRESHOLD_MS && now - lastVoiceRef.current > VOICE_ANNOUNCE_INTERVAL_MS) {
+      lastVoiceRef.current = now;
+      speak("Please correct your posture.");
+    }
+  }, [playAlert, speak]);
 
   const smoothedResult = useCallback((newResult: PostureResult): PostureResult => {
     const buf = resultsBufferRef.current;
@@ -108,7 +176,7 @@ export function usePostureMonitor() {
     setError("");
     try {
       const vision = await FilesetResolver.forVisionTasks(
-        "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm"
+        "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.35/wasm"
       );
       landmarkerRef.current = await PoseLandmarker.createFromOptions(vision, {
         baseOptions: {
@@ -172,17 +240,7 @@ export function usePostureMonitor() {
                 if (badStartRef.current === null) badStartRef.current = now;
                 const elapsed = now - badStartRef.current;
                 setBadDuration(Math.floor(elapsed / 1000));
-
-                if (now - lastBeepRef.current > BAD_POSTURE_BEEP_INTERVAL_MS) {
-                  lastBeepRef.current = now;
-                  beep(880, 0.25, 0.5);
-                  setTimeout(() => beep(660, 0.25, 0.4), 300);
-                }
-
-                if (elapsed > VOICE_ANNOUNCE_THRESHOLD_MS && now - lastVoiceRef.current > VOICE_ANNOUNCE_INTERVAL_MS) {
-                  lastVoiceRef.current = now;
-                  speak("Please correct your posture.");
-                }
+                fireAlerts(elapsed, now);
               } else if (smoothed.status === "good") {
                 if (badStartRef.current !== null) {
                   badStartRef.current = null;
@@ -210,17 +268,7 @@ export function usePostureMonitor() {
                 if (badStartRef.current === null) badStartRef.current = now;
                 const elapsed = now - badStartRef.current;
                 setBadDuration(Math.floor(elapsed / 1000));
-
-                if (now - lastBeepRef.current > BAD_POSTURE_BEEP_INTERVAL_MS) {
-                  lastBeepRef.current = now;
-                  beep(880, 0.25, 0.5);
-                  setTimeout(() => beep(660, 0.25, 0.4), 300);
-                }
-
-                if (elapsed > VOICE_ANNOUNCE_THRESHOLD_MS && now - lastVoiceRef.current > VOICE_ANNOUNCE_INTERVAL_MS) {
-                  lastVoiceRef.current = now;
-                  speak("Please correct your posture.");
-                }
+                fireAlerts(elapsed, now);
               } else if (smoothed.status === "good") {
                 if (badStartRef.current !== null) {
                   badStartRef.current = null;
@@ -250,7 +298,7 @@ export function usePostureMonitor() {
       setError(msg);
       setState("error");
     }
-  }, [beep, speak, smoothedResult, startCamera]);
+  }, [fireAlerts, smoothedResult, startCamera]);
 
   const stopMonitoring = useCallback(() => {
     runningRef.current = false;
@@ -339,6 +387,9 @@ export function usePostureMonitor() {
     badDuration,
     cameraPhase,
     dutyCycle,
+    alertTone,
+    setAlertTone,
+    playAlert,
     startMonitoring,
     stopMonitoring,
     startDutyCycle,

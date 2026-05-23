@@ -1,12 +1,13 @@
 import { useState } from "react";
-import { usePostureMonitor } from "./usePostureMonitor";
+import { usePostureMonitor, ALERT_TONE_LABELS } from "./usePostureMonitor";
+import type { AlertTone } from "./usePostureMonitor";
 import "./App.css";
 
 export default function App() {
   const {
     videoRef, canvasRef, state, result, error, badDuration,
-    cameraPhase, dutyCycle, startMonitoring, stopMonitoring,
-    startDutyCycle, stopDutyCycle,
+    cameraPhase, dutyCycle, alertTone, setAlertTone, playAlert,
+    startMonitoring, stopMonitoring, startDutyCycle, stopDutyCycle,
   } = usePostureMonitor();
 
   const [onMin, setOnMin] = useState(0.5);
@@ -130,6 +131,30 @@ export default function App() {
             {/* Settings panel */}
             {showSettings && state === "running" && (
               <div className="settings-card">
+                <h3 className="settings-title">Alert Tone</h3>
+                <p className="settings-desc">
+                  Choose the sound played when poor posture is detected.
+                </p>
+                <div className="tone-selector">
+                  {(Object.keys(ALERT_TONE_LABELS) as AlertTone[]).map((tone) => (
+                    <button
+                      key={tone}
+                      className={`tone-btn ${alertTone === tone ? "tone-btn-active" : ""}`}
+                      onClick={() => setAlertTone(tone)}
+                    >
+                      {ALERT_TONE_LABELS[tone]}
+                    </button>
+                  ))}
+                </div>
+                <button className="btn btn-secondary tone-preview-btn" onClick={playAlert}>
+                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                    <polygon points="2,1 13,7 2,13" fill="currentColor" />
+                  </svg>
+                  Preview
+                </button>
+
+                <div className="settings-divider" />
+
                 <h3 className="settings-title">Camera Saver</h3>
                 <p className="settings-desc">
                   Periodically turns the camera on and off to reduce power consumption during long sessions.
