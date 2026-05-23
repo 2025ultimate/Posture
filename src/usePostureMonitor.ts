@@ -2,6 +2,18 @@ import { useRef, useState, useCallback, useEffect } from "react";
 import { PoseLandmarker, FilesetResolver, DrawingUtils } from "@mediapipe/tasks-vision";
 import { analyzePosture } from "./postureAnalysis";
 import type { PostureResult } from "./postureAnalysis";
+import { appendSession } from "./sessionHistory";
+import type { SessionRecord } from "./sessionHistory";
+
+interface SessionStats {
+  startedAt: number;
+  lastTickAt: number;
+  totalMs: number;
+  badMs: number;
+  issueCounts: Record<string, number>;
+  scoreSums: { neckTilt: number; shoulderLevel: number; forwardHead: number; eyeLevel: number };
+  sampleCount: number;
+}
 
 export type MonitorState = "idle" | "loading" | "running" | "error";
 export type CameraPhase = "on" | "off" | "always";
@@ -53,6 +65,8 @@ export function usePostureMonitor() {
   const detectFnRef = useRef<(() => void) | null>(null);
   const alertToneRef = useRef<AlertTone>(loadStoredTone());
   const drawingUtilsRef = useRef<DrawingUtils | null>(null);
+  const sessionStatsRef = useRef<SessionStats | null>(null);
+  const [sessionsVersion, setSessionsVersion] = useState(0);
 
   const [state, setState] = useState<MonitorState>("idle");
   const [result, setResult] = useState<PostureResult | null>(null);
@@ -209,6 +223,15 @@ export function usePostureMonitor() {
 
       setState("running");
       runningRef.current = true;
+      sessionStatsRef.current = {
+        startedAt: Date.now(),
+        lastTickAt: Date.now(),
+        totalMs: 0,
+        badMs: 0,
+        issueCounts: {},
+        scoreSums: { neckTilt: 0, shoulderLevel: 0, forwardHead: 0, eyeLevel: 0 },
+        sampleCount: 0,
+      };
 
       let lastTime = -1;
 
@@ -257,6 +280,24 @@ export function usePostureMonitor() {
             setResult(smoothed);
 
             const now = Date.now();
+            const stats = sessionStatsRef.current;
+            if (stats) {
+              const dt = now - stats.lastTickAt;
+              stats.lastTickAt = now;
+              stats.totalMs += dt;
+              if (smoothed.status === "bad") {
+                stats.badMs += dt;
+                smoothed.issues.forEach((issue) => {
+                  stats.issueCounts[issue] = (stats.issueCounts[issue] ?? 0) + 1;
+                });
+              }
+              stats.scoreSums.neckTilt += smoothed.scores.neckTilt;
+              stats.scoreSums.shoulderLevel += smoothed.scores.shoulderLevel;
+              stats.scoreSums.forwardHead += smoothed.scores.forwardHead;
+              stats.scoreSums.eyeLevel += smoothed.scores.eyeLevel;
+              stats.sampleCount += 1;
+            }
+
             if (smoothed.status === "bad") {
               if (badStartRef.current === null) badStartRef.current = now;
               const elapsed = now - badStartRef.current;
@@ -306,6 +347,28 @@ export function usePostureMonitor() {
     resultsBufferRef.current = [];
     badStartRef.current = null;
     detectFnRef.current = null;
+
+    const stats = sessionStatsRef.current;
+    if (stats && stats.sampleCount > 0) {
+      const record: SessionRecord = {
+        startedAt: stats.startedAt,
+        endedAt: Date.now(),
+        durationMs: stats.totalMs,
+        badDurationMs: stats.badMs,
+        issueCounts: stats.issueCounts,
+        avgScores: {
+          neckTilt: stats.scoreSums.neckTilt / stats.sampleCount,
+          shoulderLevel: stats.scoreSums.shoulderLevel / stats.sampleCount,
+          forwardHead: stats.scoreSums.forwardHead / stats.sampleCount,
+          eyeLevel: stats.scoreSums.eyeLevel / stats.sampleCount,
+        },
+        sampleCount: stats.sampleCount,
+      };
+      appendSession(record);
+      setSessionsVersion((v) => v + 1);
+    }
+    sessionStatsRef.current = null;
+
     if (audioCtxRef.current && audioCtxRef.current.state !== "closed") {
       void audioCtxRef.current.close();
     }
@@ -386,6 +449,7 @@ export function usePostureMonitor() {
     setAlertTone,
     playAlert,
     speak,
+    sessionsVersion,
     startMonitoring,
     stopMonitoring,
     startDutyCycle,

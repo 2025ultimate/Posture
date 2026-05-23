@@ -1,15 +1,18 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { usePostureMonitor, ALERT_TONE_LABELS } from "./usePostureMonitor";
 import type { AlertTone } from "./usePostureMonitor";
 import { useHabitReminders, HABIT_INFO } from "./useHabitReminders";
 import type { HabitKey } from "./useHabitReminders";
+import { loadHistory, computeInsights, clearHistory } from "./sessionHistory";
+import type { Insights } from "./sessionHistory";
 import "./App.css";
 
 export default function App() {
   const {
     videoRef, canvasRef, state, result, error, badDuration,
     cameraPhase, dutyCycle, alertTone, setAlertTone, playAlert, speak,
-    startMonitoring, stopMonitoring, startDutyCycle, stopDutyCycle,
+    sessionsVersion, startMonitoring, stopMonitoring,
+    startDutyCycle, stopDutyCycle,
   } = usePostureMonitor();
 
   const { habits, setEnabled, setHabitInterval, snooze } = useHabitReminders(playAlert, speak);
@@ -17,6 +20,21 @@ export default function App() {
   const [onMin, setOnMin] = useState(0.5);
   const [offMin, setOffMin] = useState(1);
   const [showSettings, setShowSettings] = useState(false);
+
+  const [historyBump, setHistoryBump] = useState(0);
+  const insights = useMemo<Insights>(
+    () => computeInsights(loadHistory()),
+    // sessionsVersion bumps when a new session is saved; historyBump
+    // bumps when the user clears history. Either causes a recompute.
+    [sessionsVersion, historyBump]
+  );
+
+  const handleClearHistory = () => {
+    if (window.confirm("Clear all session history? This cannot be undone.")) {
+      clearHistory();
+      setHistoryBump((b) => b + 1);
+    }
+  };
 
   const statusLabel = result?.status === "good" ? "Good Posture" : result?.status === "bad" ? "Poor Posture" : "Analyzing...";
   const statusColor = result?.status === "good" ? "#22c55e" : result?.status === "bad" ? "#ef4444" : "#64748b";
@@ -265,6 +283,10 @@ export default function App() {
               snooze={snooze}
             />
 
+            {insights.totalSessions > 0 && (
+              <InsightsCard insights={insights} onClear={handleClearHistory} />
+            )}
+
             <div className="tips-card">
               <h3 className="tips-title">Quick Tips</h3>
               <ul className="tips-list">
@@ -365,6 +387,103 @@ function NextDueLabel({ nextFireAt }: { nextFireAt: number }) {
     <span className="habit-next">
       Next in {min > 0 ? `${min}m ${sec}s` : `${sec}s`}
     </span>
+  );
+}
+
+function InsightsCard({
+  insights,
+  onClear,
+}: {
+  insights: Insights;
+  onClear: () => void;
+}) {
+  return (
+    <div className="insights-card">
+      <div className="insights-header">
+        <h3 className="metrics-title">Your Insights</h3>
+        <button className="insights-clear" onClick={onClear} title="Clear history">
+          Clear
+        </button>
+      </div>
+
+      <div className="insights-stats">
+        <Stat value={String(insights.totalSessions)} label="Sessions" />
+        <Stat value={`${insights.totalMinutes}m`} label="Tracked" />
+        <Stat
+          value={`${Math.round(insights.averageBadPercent)}%`}
+          label="Poor posture"
+          tone={insights.averageBadPercent > 40 ? "bad" : insights.averageBadPercent > 20 ? "warn" : "good"}
+        />
+      </div>
+
+      {insights.topIssues.length > 0 && (
+        <div className="insights-section">
+          <div className="insights-subtitle">Most frequent issues</div>
+          <div className="insights-issues">
+            {insights.topIssues.map((i) => (
+              <div key={i.issue} className="insights-issue">
+                <span>{i.issue}</span>
+                <span className="insights-issue-count">{i.count}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {insights.timeOfDayBuckets.length > 0 && (
+        <div className="insights-section">
+          <div className="insights-subtitle">Posture by time of day</div>
+          <div className="insights-buckets">
+            {insights.timeOfDayBuckets.map((b) => {
+              const pct = Math.min(100, Math.round(b.avgBadPercent));
+              return (
+                <div key={b.label} className="insights-bucket">
+                  <div className="insights-bucket-head">
+                    <span>{b.label}</span>
+                    <span className="insights-bucket-pct">{pct}% bad</span>
+                  </div>
+                  <div className="insights-bucket-bar">
+                    <div
+                      className="insights-bucket-fill"
+                      style={{
+                        width: `${pct}%`,
+                        background: pct > 50 ? "#ef4444" : pct > 25 ? "#f59e0b" : "#22c55e",
+                      }}
+                    />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {insights.recommendations.length > 0 && (
+        <div className="insights-section">
+          <div className="insights-subtitle">Things to watch</div>
+          <div className="insights-recs">
+            {insights.recommendations.map((r, i) => (
+              <div key={i} className="insights-rec">
+                <span className="insights-rec-bar" />
+                <span>{r}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function Stat({ value, label, tone }: { value: string; label: string; tone?: "good" | "warn" | "bad" }) {
+  const color = tone === "bad" ? "#ef4444" : tone === "warn" ? "#f59e0b" : tone === "good" ? "#22c55e" : "var(--text)";
+  return (
+    <div className="insights-stat">
+      <div className="insights-stat-value" style={{ color }}>
+        {value}
+      </div>
+      <div className="insights-stat-label">{label}</div>
+    </div>
   );
 }
 
