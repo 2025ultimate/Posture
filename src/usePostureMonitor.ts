@@ -25,14 +25,24 @@ const BAD_POSTURE_BEEP_INTERVAL_MS = 5000;
 const VOICE_ANNOUNCE_THRESHOLD_MS = 15000;
 const VOICE_ANNOUNCE_INTERVAL_MS = 20000;
 const SMOOTHING_FRAMES = 8;
+// Detection runs ~10 fps in foreground, ~2 fps when tab/window is hidden.
+// Posture changes slowly; >10 fps wastes CPU/GPU without changing UX.
+const FOREGROUND_DETECT_INTERVAL_MS = 100;
 const BACKGROUND_DETECT_INTERVAL_MS = 500;
+const ALERT_TONE_STORAGE_KEY = "postureguard.alertTone";
+
+function loadStoredTone(): AlertTone {
+  if (typeof window === "undefined") return "beep";
+  const stored = window.localStorage.getItem(ALERT_TONE_STORAGE_KEY);
+  if (stored && stored in ALERT_TONE_LABELS) return stored as AlertTone;
+  return "beep";
+}
 
 export function usePostureMonitor() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const landmarkerRef = useRef<PoseLandmarker | null>(null);
-  const animFrameRef = useRef<number>(0);
-  const backgroundTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const detectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const lastBeepRef = useRef<number>(0);
   const lastVoiceRef = useRef<number>(0);
@@ -41,7 +51,8 @@ export function usePostureMonitor() {
   const dutyCycleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const runningRef = useRef(false);
   const detectFnRef = useRef<(() => void) | null>(null);
-  const alertToneRef = useRef<AlertTone>("beep");
+  const alertToneRef = useRef<AlertTone>(loadStoredTone());
+  const drawingUtilsRef = useRef<DrawingUtils | null>(null);
 
   const [state, setState] = useState<MonitorState>("idle");
   const [result, setResult] = useState<PostureResult | null>(null);
@@ -53,18 +64,28 @@ export function usePostureMonitor() {
     onDuration: 30,
     offDuration: 60,
   });
-  const [alertTone, setAlertTone] = useState<AlertTone>("beep");
+  const [alertTone, setAlertTone] = useState<AlertTone>(loadStoredTone);
   const badStartRef = useRef<number | null>(null);
 
   useEffect(() => {
     alertToneRef.current = alertTone;
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(ALERT_TONE_STORAGE_KEY, alertTone);
+    }
   }, [alertTone]);
 
-  const playAlert = useCallback(() => {
-    if (!audioCtxRef.current) {
+  const ensureAudioContext = useCallback((): AudioContext => {
+    if (!audioCtxRef.current || audioCtxRef.current.state === "closed") {
       audioCtxRef.current = new AudioContext();
     }
-    const ctx = audioCtxRef.current;
+    if (audioCtxRef.current.state === "suspended") {
+      void audioCtxRef.current.resume();
+    }
+    return audioCtxRef.current;
+  }, []);
+
+  const playAlert = useCallback(() => {
+    const ctx = ensureAudioContext();
 
     const tone = (freq: number, dur: number, vol: number, type: OscillatorType = "sine", startOffset = 0) => {
       const osc = ctx.createOscillator();
@@ -85,18 +106,15 @@ export function usePostureMonitor() {
         tone(660, 0.25, 0.4, "sine", 0.3);
         break;
       case "ding":
-        // Bell-like: pure sine, long slow decay
         tone(1047, 0.9, 0.6);
         tone(2093, 0.5, 0.15, "sine", 0.01);
         break;
       case "chime":
-        // C-E-G ascending musical chime
         tone(523, 0.35, 0.5);
         tone(659, 0.35, 0.45, "sine", 0.2);
         tone(784, 0.55, 0.4, "sine", 0.4);
         break;
       case "chirp": {
-        // Ascending frequency sweep
         const osc = ctx.createOscillator();
         const gain = ctx.createGain();
         osc.connect(gain);
@@ -111,13 +129,12 @@ export function usePostureMonitor() {
         break;
       }
       case "buzz":
-        // Three short square-wave pulses
         tone(300, 0.08, 0.45, "square");
         tone(300, 0.08, 0.45, "square", 0.15);
         tone(300, 0.08, 0.45, "square", 0.3);
         break;
     }
-  }, []);
+  }, [ensureAudioContext]);
 
   const speak = useCallback((text: string) => {
     if (!("speechSynthesis" in window)) return;
@@ -203,7 +220,11 @@ export function usePostureMonitor() {
         if (video.readyState >= 2 && video.currentTime !== lastTime) {
           lastTime = video.currentTime;
 
-          if (canvas) {
+          const timestamp = performance.now();
+          const detection = landmarkerRef.current.detectForVideo(video, timestamp);
+          const visible = !document.hidden && canvas !== null;
+
+          if (visible && canvas) {
             const ctx = canvas.getContext("2d")!;
             canvas.width = video.videoWidth || 640;
             canvas.height = video.videoHeight || 480;
@@ -214,68 +235,45 @@ export function usePostureMonitor() {
             ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
             ctx.restore();
 
-            const timestamp = performance.now();
-            const detection = landmarkerRef.current!.detectForVideo(video, timestamp);
-
             if (detection.landmarks && detection.landmarks.length > 0) {
-              const landmarks = detection.landmarks[0];
-              const mirroredLandmarks = landmarks.map((lm) => ({ ...lm, x: 1 - lm.x }));
-
-              const drawingUtils = new DrawingUtils(ctx);
-              drawingUtils.drawConnectors(mirroredLandmarks, PoseLandmarker.POSE_CONNECTIONS, {
+              const mirrored = detection.landmarks[0].map((lm) => ({ ...lm, x: 1 - lm.x }));
+              if (!drawingUtilsRef.current) {
+                drawingUtilsRef.current = new DrawingUtils(ctx);
+              }
+              drawingUtilsRef.current.drawConnectors(mirrored, PoseLandmarker.POSE_CONNECTIONS, {
                 color: "#00e5ff",
                 lineWidth: 2,
               });
-              drawingUtils.drawLandmarks(mirroredLandmarks, {
+              drawingUtilsRef.current.drawLandmarks(mirrored, {
                 color: "#ff4081",
                 radius: 4,
               });
-
-              const raw = analyzePosture(landmarks);
-              const smoothed = smoothedResult(raw);
-              setResult(smoothed);
-
-              const now = Date.now();
-              if (smoothed.status === "bad") {
-                if (badStartRef.current === null) badStartRef.current = now;
-                const elapsed = now - badStartRef.current;
-                setBadDuration(Math.floor(elapsed / 1000));
-                fireAlerts(elapsed, now);
-              } else if (smoothed.status === "good") {
-                if (badStartRef.current !== null) {
-                  badStartRef.current = null;
-                  setBadDuration(0);
-                }
-              }
-            } else {
-              setResult({
-                status: "unknown",
-                issues: ["No person detected"],
-                scores: { neckTilt: 0, shoulderLevel: 0, forwardHead: 0, eyeLevel: 0 },
-              });
             }
-          } else {
-            // Background mode: no canvas, just detect and alert
-            const timestamp = performance.now();
-            const detection = landmarkerRef.current!.detectForVideo(video, timestamp);
-            if (detection.landmarks && detection.landmarks.length > 0) {
-              const raw = analyzePosture(detection.landmarks[0]);
-              const smoothed = smoothedResult(raw);
-              setResult(smoothed);
+          }
 
-              const now = Date.now();
-              if (smoothed.status === "bad") {
-                if (badStartRef.current === null) badStartRef.current = now;
-                const elapsed = now - badStartRef.current;
-                setBadDuration(Math.floor(elapsed / 1000));
-                fireAlerts(elapsed, now);
-              } else if (smoothed.status === "good") {
-                if (badStartRef.current !== null) {
-                  badStartRef.current = null;
-                  setBadDuration(0);
-                }
+          if (detection.landmarks && detection.landmarks.length > 0) {
+            const raw = analyzePosture(detection.landmarks[0]);
+            const smoothed = smoothedResult(raw);
+            setResult(smoothed);
+
+            const now = Date.now();
+            if (smoothed.status === "bad") {
+              if (badStartRef.current === null) badStartRef.current = now;
+              const elapsed = now - badStartRef.current;
+              setBadDuration(Math.floor(elapsed / 1000));
+              fireAlerts(elapsed, now);
+            } else if (smoothed.status === "good") {
+              if (badStartRef.current !== null) {
+                badStartRef.current = null;
+                setBadDuration(0);
               }
             }
+          } else if (visible) {
+            setResult({
+              status: "unknown",
+              issues: ["No person detected"],
+              scores: { neckTilt: 0, shoulderLevel: 0, forwardHead: 0, eyeLevel: 0 },
+            });
           }
         }
 
@@ -284,11 +282,8 @@ export function usePostureMonitor() {
 
       const scheduleNext = () => {
         if (!runningRef.current) return;
-        if (document.hidden) {
-          backgroundTimerRef.current = setTimeout(detect, BACKGROUND_DETECT_INTERVAL_MS);
-        } else {
-          animFrameRef.current = requestAnimationFrame(detect);
-        }
+        const interval = document.hidden ? BACKGROUND_DETECT_INTERVAL_MS : FOREGROUND_DETECT_INTERVAL_MS;
+        detectTimerRef.current = setTimeout(detect, interval);
       };
 
       detectFnRef.current = detect;
@@ -302,32 +297,32 @@ export function usePostureMonitor() {
 
   const stopMonitoring = useCallback(() => {
     runningRef.current = false;
-    cancelAnimationFrame(animFrameRef.current);
-    if (backgroundTimerRef.current) clearTimeout(backgroundTimerRef.current);
+    if (detectTimerRef.current) clearTimeout(detectTimerRef.current);
     if (dutyCycleTimerRef.current) clearTimeout(dutyCycleTimerRef.current);
     stopCamera();
     landmarkerRef.current?.close();
     landmarkerRef.current = null;
+    drawingUtilsRef.current = null;
     resultsBufferRef.current = [];
     badStartRef.current = null;
     detectFnRef.current = null;
+    if (audioCtxRef.current && audioCtxRef.current.state !== "closed") {
+      void audioCtxRef.current.close();
+    }
+    audioCtxRef.current = null;
     setBadDuration(0);
     setResult(null);
     setCameraPhase("always");
     setState("idle");
   }, [stopCamera]);
 
-  // Handle visibility change: switch between rAF and setTimeout
+  // Reschedule detect timer when visibility flips so interval adapts immediately
   useEffect(() => {
     const handleVisibility = () => {
       if (!runningRef.current || !detectFnRef.current) return;
-      if (document.hidden) {
-        cancelAnimationFrame(animFrameRef.current);
-        backgroundTimerRef.current = setTimeout(detectFnRef.current, BACKGROUND_DETECT_INTERVAL_MS);
-      } else {
-        if (backgroundTimerRef.current) clearTimeout(backgroundTimerRef.current);
-        animFrameRef.current = requestAnimationFrame(detectFnRef.current);
-      }
+      if (detectTimerRef.current) clearTimeout(detectTimerRef.current);
+      const interval = document.hidden ? BACKGROUND_DETECT_INTERVAL_MS : FOREGROUND_DETECT_INTERVAL_MS;
+      detectTimerRef.current = setTimeout(detectFnRef.current, interval);
     };
     document.addEventListener("visibilitychange", handleVisibility);
     return () => document.removeEventListener("visibilitychange", handleVisibility);
