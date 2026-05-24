@@ -1,11 +1,23 @@
 {
-  "name": "project",
+  "name": "postureguard",
+  "productName": "PostureGuard",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.0",
+  "description": "Real-time posture monitoring app",
+  "author": "PostureGuard",
   "type": "module",
+  "main": "dist-electron/main.js",
   "scripts": {
     "dev": "vite",
+    "dev:electron": "concurrently -n Vite,Electron -c cyan,blue \"vite\" \"wait-on tcp:5173 && electron .\"",
     "build": "tsc -b && vite build",
+    "build:electron-main": "tsc --project electron/tsconfig.json",
+    "build:all": "npm run bundle-assets && npm run build && npm run build:electron-main",
+    "bundle-assets": "node scripts/copy-wasm.mjs && node scripts/download-model.mjs",
+    "package": "npm run build:all && electron-builder",
+    "package:mac": "npm run build:all && electron-builder --mac",
+    "package:win": "npm run build:all && electron-builder --win",
+    "package:linux": "npm run build:all && electron-builder --linux",
     "lint": "eslint .",
     "preview": "vite preview"
   },
@@ -20,12 +32,66 @@
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.1",
+    "concurrently": "^9.1.2",
+    "electron": "^34.0.0",
+    "electron-builder": "^25.1.8",
     "eslint": "^10.3.0",
     "eslint-plugin-react-hooks": "^7.1.1",
     "eslint-plugin-react-refresh": "^0.5.2",
     "globals": "^17.6.0",
     "typescript": "~6.0.2",
     "typescript-eslint": "^8.59.2",
-    "vite": "^8.0.12"
+    "vite": "^8.0.12",
+    "wait-on": "^8.0.3"
+  },
+  "build": {
+    "appId": "com.postguard.postureguard",
+    "productName": "PostureGuard",
+    "directories": {
+      "output": "release",
+      "buildResources": "build"
+    },
+    "files": [
+      "dist/**/*",
+      "dist-electron/**/*"
+    ],
+    "extraMetadata": {
+      "main": "dist-electron/main.js"
+    },
+    "mac": {
+      "target": [
+        { "target": "dmg", "arch": ["arm64", "x64"] }
+      ],
+      "category": "public.app-category.healthcare-fitness",
+      "darkModeSupport": true,
+      "hardenedRuntime": true,
+      "gatekeeperAssess": false,
+      "entitlements": "build/entitlements.mac.plist",
+      "entitlementsInherit": "build/entitlements.mac.plist",
+      "extendInfo": {
+        "NSCameraUsageDescription": "PostureGuard needs camera access to detect and monitor your posture in real time. Video never leaves your device.",
+        "NSMicrophoneUsageDescription": "Not used. PostureGuard does not record audio."
+      }
+    },
+    "dmg": {
+      "writeUpdateInfo": false
+    },
+    "win": {
+      "target": [
+        { "target": "nsis", "arch": ["x64"] }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    },
+    "linux": {
+      "target": [
+        { "target": "AppImage", "arch": ["x64"] }
+      ],
+      "category": "Utility"
+    }
   }
 }

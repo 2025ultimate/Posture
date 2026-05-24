@@ -1,17 +1,49 @@
-import { useState } from "react";
-import { usePostureMonitor } from "./usePostureMonitor";
+import { useEffect, useMemo, useState } from "react";
+import { usePostureMonitor, ALERT_TONE_LABELS } from "./usePostureMonitor";
+import type { AlertTone } from "./usePostureMonitor";
+import { useHabitReminders, HABIT_INFO } from "./useHabitReminders";
+import type { HabitKey } from "./useHabitReminders";
+import { loadHistory, computeInsights, clearHistory } from "./sessionHistory";
+import type { Insights } from "./sessionHistory";
+import { usePersistedState } from "./usePersistedState";
 import "./App.css";
+
+type Theme = "light" | "dark";
 
 export default function App() {
   const {
     videoRef, canvasRef, state, result, error, badDuration,
-    cameraPhase, dutyCycle, startMonitoring, stopMonitoring,
+    cameraPhase, dutyCycle, alertTone, setAlertTone, playAlert, speak,
+    sessionsVersion, startMonitoring, stopMonitoring,
     startDutyCycle, stopDutyCycle,
   } = usePostureMonitor();
+
+  const { habits, setEnabled, setHabitInterval, snooze } = useHabitReminders(playAlert, speak);
+
+  const [theme, setTheme] = usePersistedState<Theme>("postureguard.theme", "dark");
+  useEffect(() => {
+    document.documentElement.setAttribute("data-theme", theme);
+  }, [theme]);
+  const toggleTheme = () => setTheme((t) => (t === "dark" ? "light" : "dark"));
 
   const [onMin, setOnMin] = useState(0.5);
   const [offMin, setOffMin] = useState(1);
   const [showSettings, setShowSettings] = useState(false);
+
+  const [historyBump, setHistoryBump] = useState(0);
+  const insights = useMemo<Insights>(
+    () => computeInsights(loadHistory()),
+    // sessionsVersion bumps when a new session is saved; historyBump
+    // bumps when the user clears history. Either causes a recompute.
+    [sessionsVersion, historyBump]
+  );
+
+  const handleClearHistory = () => {
+    if (window.confirm("Clear all session history? This cannot be undone.")) {
+      clearHistory();
+      setHistoryBump((b) => b + 1);
+    }
+  };
 
   const statusLabel = result?.status === "good" ? "Good Posture" : result?.status === "bad" ? "Poor Posture" : "Analyzing...";
   const statusColor = result?.status === "good" ? "#22c55e" : result?.status === "bad" ? "#ef4444" : "#64748b";
@@ -31,13 +63,23 @@ export default function App() {
         <div className="header-inner">
           <div className="logo">
             <svg width="26" height="26" viewBox="0 0 28 28" fill="none">
-              <circle cx="14" cy="7" r="4" fill="#3b82f6" />
-              <path d="M14 11 L14 20" stroke="#3b82f6" strokeWidth="2.5" strokeLinecap="round" />
-              <path d="M8 14 L14 12 L20 14" stroke="#3b82f6" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
-              <path d="M14 20 L10 26" stroke="#3b82f6" strokeWidth="2.5" strokeLinecap="round" />
-              <path d="M14 20 L18 26" stroke="#3b82f6" strokeWidth="2.5" strokeLinecap="round" />
+              <circle cx="14" cy="7" r="4" fill="currentColor" className="logo-accent" />
+              <path d="M14 11 L14 20" stroke="currentColor" className="logo-accent" strokeWidth="2.5" strokeLinecap="round" />
+              <path d="M8 14 L14 12 L20 14" stroke="currentColor" className="logo-accent" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+              <path d="M14 20 L10 26" stroke="currentColor" className="logo-accent" strokeWidth="2.5" strokeLinecap="round" />
+              <path d="M14 20 L18 26" stroke="currentColor" className="logo-accent" strokeWidth="2.5" strokeLinecap="round" />
             </svg>
-            <span>PostureGuard</span>
+            <div className="logo-text">
+              <span className="logo-name">PostureGuard</span>
+              <a
+                className="logo-brand"
+                href="https://www.gonav.tech"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                by GoNav Tech
+              </a>
+            </div>
           </div>
           <div className="header-right">
             {state === "running" && (
@@ -53,6 +95,35 @@ export default function App() {
                 )}
               </>
             )}
+            <button
+              className="theme-toggle"
+              onClick={toggleTheme}
+              title={theme === "dark" ? "Switch to light theme" : "Switch to dark theme"}
+              aria-label={theme === "dark" ? "Switch to light theme" : "Switch to dark theme"}
+            >
+              {theme === "dark" ? (
+                // Sun icon — click to switch TO light
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+                  <circle cx="12" cy="12" r="4" stroke="currentColor" strokeWidth="1.8" />
+                  <path
+                    d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"
+                    stroke="currentColor"
+                    strokeWidth="1.8"
+                    strokeLinecap="round"
+                  />
+                </svg>
+              ) : (
+                // Moon icon — click to switch TO dark
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+                  <path
+                    d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"
+                    stroke="currentColor"
+                    strokeWidth="1.8"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+              )}
+            </button>
             {state === "running" && (
               <button className="settings-btn" onClick={() => setShowSettings(!showSettings)} title="Settings">
                 <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
@@ -74,10 +145,10 @@ export default function App() {
               {state !== "running" && (
                 <div className="camera-placeholder">
                   <svg width="64" height="64" viewBox="0 0 64 64" fill="none">
-                    <rect width="64" height="64" rx="32" fill="#1e293b" />
-                    <path d="M20 24a4 4 0 014-4h16a4 4 0 014 4v18a4 4 0 01-4 4H24a4 4 0 01-4-4V24z" stroke="#475569" strokeWidth="2" />
-                    <circle cx="32" cy="33" r="6" stroke="#475569" strokeWidth="2" />
-                    <circle cx="40" cy="26" r="2" fill="#475569" />
+                    <rect width="64" height="64" rx="32" fill="currentColor" fillOpacity="0.12" />
+                    <path d="M20 24a4 4 0 014-4h16a4 4 0 014 4v18a4 4 0 01-4 4H24a4 4 0 01-4-4V24z" stroke="currentColor" strokeWidth="2" />
+                    <circle cx="32" cy="33" r="6" stroke="currentColor" strokeWidth="2" />
+                    <circle cx="40" cy="26" r="2" fill="currentColor" />
                   </svg>
                   <p>{state === "loading" ? "Initializing camera & AI model..." : "Camera feed will appear here"}</p>
                 </div>
@@ -85,8 +156,8 @@ export default function App() {
               {state === "running" && cameraPhase === "off" && (
                 <div className="camera-placeholder camera-off-placeholder">
                   <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
-                    <circle cx="24" cy="24" r="24" fill="#1e293b" />
-                    <path d="M14 14l20 20M16 20a4 4 0 014-4h12l-20 20v-12a4 4 0 014-4z" stroke="#475569" strokeWidth="2" strokeLinecap="round" />
+                    <circle cx="24" cy="24" r="24" fill="currentColor" fillOpacity="0.12" />
+                    <path d="M14 14l20 20M16 20a4 4 0 014-4h12l-20 20v-12a4 4 0 014-4z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
                   </svg>
                   <p>Camera paused to save power</p>
                   <p className="camera-off-sub">Monitoring resumes in next cycle</p>
@@ -130,6 +201,30 @@ export default function App() {
             {/* Settings panel */}
             {showSettings && state === "running" && (
               <div className="settings-card">
+                <h3 className="settings-title">Alert Tone</h3>
+                <p className="settings-desc">
+                  Choose the sound played when poor posture is detected.
+                </p>
+                <div className="tone-selector">
+                  {(Object.keys(ALERT_TONE_LABELS) as AlertTone[]).map((tone) => (
+                    <button
+                      key={tone}
+                      className={`tone-btn ${alertTone === tone ? "tone-btn-active" : ""}`}
+                      onClick={() => setAlertTone(tone)}
+                    >
+                      {ALERT_TONE_LABELS[tone]}
+                    </button>
+                  ))}
+                </div>
+                <button className="btn btn-secondary tone-preview-btn" onClick={playAlert}>
+                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                    <polygon points="2,1 13,7 2,13" fill="currentColor" />
+                  </svg>
+                  Preview
+                </button>
+
+                <div className="settings-divider" />
+
                 <h3 className="settings-title">Camera Saver</h3>
                 <p className="settings-desc">
                   Periodically turns the camera on and off to reduce power consumption during long sessions.
@@ -192,9 +287,9 @@ export default function App() {
                   </svg>
                 )}
                 {(!result || result.status === "unknown") && (
-                  <svg width="56" height="56" viewBox="0 0 56 56" fill="none">
-                    <circle cx="28" cy="28" r="28" fill="#1e293b" />
-                    <circle cx="28" cy="28" r="10" stroke="#475569" strokeWidth="2" strokeDasharray="5 3" />
+                  <svg width="56" height="56" viewBox="0 0 56 56" fill="none" className="status-unknown-icon">
+                    <circle cx="28" cy="28" r="28" fill="currentColor" fillOpacity="0.12" />
+                    <circle cx="28" cy="28" r="10" stroke="currentColor" strokeWidth="2" strokeDasharray="5 3" />
                   </svg>
                 )}
               </div>
@@ -229,6 +324,17 @@ export default function App() {
               </div>
             </div>
 
+            <HabitsCard
+              habits={habits}
+              setEnabled={setEnabled}
+              setHabitInterval={setHabitInterval}
+              snooze={snooze}
+            />
+
+            {insights.totalSessions > 0 && (
+              <InsightsCard insights={insights} onClear={handleClearHistory} />
+            )}
+
             <div className="tips-card">
               <h3 className="tips-title">Quick Tips</h3>
               <ul className="tips-list">
@@ -250,6 +356,201 @@ export default function App() {
           </div>
         </div>
       </main>
+
+      <footer className="footer">
+        <div className="footer-inner">
+          <span className="footer-product">PostureGuard</span>
+          <span className="footer-dot">·</span>
+          <span>
+            built by{" "}
+            <a
+              className="footer-link"
+              href="https://www.gonav.tech"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              GoNav Tech
+            </a>
+          </span>
+          <span className="footer-dot">·</span>
+          <span>created by Govind Kedia</span>
+        </div>
+      </footer>
+    </div>
+  );
+}
+
+interface HabitsCardProps {
+  habits: ReturnType<typeof useHabitReminders>["habits"];
+  setEnabled: (key: HabitKey, enabled: boolean) => void;
+  setHabitInterval: (key: HabitKey, intervalMin: number) => void;
+  snooze: (key: HabitKey) => void;
+}
+
+function HabitsCard({ habits, setEnabled, setHabitInterval, snooze }: HabitsCardProps) {
+  const keys = Object.keys(HABIT_INFO) as HabitKey[];
+  return (
+    <div className="habits-card">
+      <h3 className="metrics-title">Habits &amp; Reminders</h3>
+      <div className="habits-list">
+        {keys.map((key) => {
+          const h = habits[key];
+          const info = HABIT_INFO[key];
+          return (
+            <div key={key} className={`habit-row ${h.enabled ? "habit-row-on" : ""}`}>
+              <div className="habit-row-top">
+                <label className="habit-toggle">
+                  <input
+                    type="checkbox"
+                    checked={h.enabled}
+                    onChange={(e) => setEnabled(key, e.target.checked)}
+                  />
+                  <span className="habit-toggle-slider" />
+                </label>
+                <div className="habit-info">
+                  <span className="habit-title">{info.title}</span>
+                  <span className="habit-desc">{info.description}</span>
+                </div>
+                <div className="habit-interval">
+                  <input
+                    type="number"
+                    min={1}
+                    max={240}
+                    step={1}
+                    value={h.intervalMin}
+                    onChange={(e) => setHabitInterval(key, Math.max(1, Number(e.target.value) || 1))}
+                    className="habit-interval-input"
+                    aria-label={`${info.title} interval in minutes`}
+                  />
+                  <span className="habit-interval-unit">min</span>
+                </div>
+              </div>
+              {h.enabled && h.nextFireAt !== null && (
+                <div className="habit-row-bottom">
+                  <NextDueLabel nextFireAt={h.nextFireAt} />
+                  <button className="habit-snooze" onClick={() => snooze(key)}>
+                    Reset
+                  </button>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function NextDueLabel({ nextFireAt }: { nextFireAt: number }) {
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setTick((n) => n + 1), 1000);
+    return () => clearInterval(id);
+  }, []);
+  const remainingMs = Math.max(0, nextFireAt - Date.now());
+  const totalSec = Math.round(remainingMs / 1000);
+  const min = Math.floor(totalSec / 60);
+  const sec = totalSec % 60;
+  return (
+    <span className="habit-next">
+      Next in {min > 0 ? `${min}m ${sec}s` : `${sec}s`}
+    </span>
+  );
+}
+
+function InsightsCard({
+  insights,
+  onClear,
+}: {
+  insights: Insights;
+  onClear: () => void;
+}) {
+  return (
+    <div className="insights-card">
+      <div className="insights-header">
+        <h3 className="metrics-title">Your Insights</h3>
+        <button className="insights-clear" onClick={onClear} title="Clear history">
+          Clear
+        </button>
+      </div>
+
+      <div className="insights-stats">
+        <Stat value={String(insights.totalSessions)} label="Sessions" />
+        <Stat value={`${insights.totalMinutes}m`} label="Tracked" />
+        <Stat
+          value={`${Math.round(insights.averageBadPercent)}%`}
+          label="Poor posture"
+          tone={insights.averageBadPercent > 40 ? "bad" : insights.averageBadPercent > 20 ? "warn" : "good"}
+        />
+      </div>
+
+      {insights.topIssues.length > 0 && (
+        <div className="insights-section">
+          <div className="insights-subtitle">Most frequent issues</div>
+          <div className="insights-issues">
+            {insights.topIssues.map((i) => (
+              <div key={i.issue} className="insights-issue">
+                <span>{i.issue}</span>
+                <span className="insights-issue-count">{i.count}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {insights.timeOfDayBuckets.length > 0 && (
+        <div className="insights-section">
+          <div className="insights-subtitle">Posture by time of day</div>
+          <div className="insights-buckets">
+            {insights.timeOfDayBuckets.map((b) => {
+              const pct = Math.min(100, Math.round(b.avgBadPercent));
+              return (
+                <div key={b.label} className="insights-bucket">
+                  <div className="insights-bucket-head">
+                    <span>{b.label}</span>
+                    <span className="insights-bucket-pct">{pct}% bad</span>
+                  </div>
+                  <div className="insights-bucket-bar">
+                    <div
+                      className="insights-bucket-fill"
+                      style={{
+                        width: `${pct}%`,
+                        background: pct > 50 ? "#ef4444" : pct > 25 ? "#f59e0b" : "#22c55e",
+                      }}
+                    />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {insights.recommendations.length > 0 && (
+        <div className="insights-section">
+          <div className="insights-subtitle">Things to watch</div>
+          <div className="insights-recs">
+            {insights.recommendations.map((r, i) => (
+              <div key={i} className="insights-rec">
+                <span className="insights-rec-bar" />
+                <span>{r}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function Stat({ value, label, tone }: { value: string; label: string; tone?: "good" | "warn" | "bad" }) {
+  const color = tone === "bad" ? "#ef4444" : tone === "warn" ? "#f59e0b" : tone === "good" ? "#22c55e" : "var(--text)";
+  return (
+    <div className="insights-stat">
+      <div className="insights-stat-value" style={{ color }}>
+        {value}
+      </div>
+      <div className="insights-stat-label">{label}</div>
     </div>
   );
 }
