@@ -94,7 +94,17 @@ export function usePostureMonitor() {
     offDuration: 60,
   });
   const [alertTone, setAlertTone] = useState<AlertTone>(loadStoredTone);
+  const [alertsPaused, setAlertsPaused] = useState(false);
+  const alertsPausedRef = useRef(false);
   const badStartRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    alertsPausedRef.current = alertsPaused;
+  }, [alertsPaused]);
+
+  const toggleAlertsPaused = useCallback(() => {
+    setAlertsPaused((p) => !p);
+  }, []);
 
   useEffect(() => {
     alertToneRef.current = alertTone;
@@ -311,11 +321,22 @@ export function usePostureMonitor() {
               stats.sampleCount += 1;
             }
 
+            // Suppress alerts when the user is on a phone call, talking to
+            // someone, or away from the desk — but still track bad posture
+            // duration so insights stay accurate.
+            const suppressAlerts =
+              alertsPausedRef.current ||
+              smoothed.activity === "phone_call" ||
+              smoothed.activity === "talking_to_someone" ||
+              smoothed.activity === "away";
+
             if (smoothed.status === "bad") {
               if (badStartRef.current === null) badStartRef.current = now;
               const elapsed = now - badStartRef.current;
               setBadDuration(Math.floor(elapsed / 1000));
-              fireAlerts(elapsed, now);
+              if (!suppressAlerts) {
+                fireAlerts(elapsed, now);
+              }
             } else if (smoothed.status === "good") {
               if (badStartRef.current !== null) {
                 badStartRef.current = null;
@@ -327,7 +348,14 @@ export function usePostureMonitor() {
               status: "unknown",
               issues: ["No person detected"],
               scores: { neckTilt: 0, shoulderLevel: 0, forwardHead: 0, eyeLevel: 0 },
+              activity: "away",
             });
+            // Also reset bad-posture timer so no stale alert fires when the
+            // user returns.
+            if (badStartRef.current !== null) {
+              badStartRef.current = null;
+              setBadDuration(0);
+            }
           }
         }
 
@@ -389,6 +417,7 @@ export function usePostureMonitor() {
     setBadDuration(0);
     setResult(null);
     setCameraPhase("always");
+    setAlertsPaused(false);
     setState("idle");
   }, [stopCamera]);
 
@@ -460,6 +489,8 @@ export function usePostureMonitor() {
     dutyCycle,
     alertTone,
     setAlertTone,
+    alertsPaused,
+    toggleAlertsPaused,
     playAlert,
     speak,
     sessionsVersion,
