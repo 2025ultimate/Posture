@@ -38,20 +38,24 @@ const BAD_POSTURE_BEEP_INTERVAL_MS = 5000;
 const VOICE_ANNOUNCE_THRESHOLD_MS = 15000;
 const VOICE_ANNOUNCE_INTERVAL_MS = 20000;
 const SMOOTHING_FRAMES = 8;
-// Motion gate: when key landmarks shift more than this per frame on
-// average over the recent buffer, we consider the user to be moving
-// (relocating laptop, gesturing while talking, stretching, etc.) and
-// suppress alerts. Coordinates are normalised 0..1 so 0.022 ≈ ~2.2% of
-// the frame per tick, which is much larger than normal sitting drift
-// but well below relocating-the-laptop scale.
+// Motion gate: two parallel signals, either one trips it.
+//   - Body motion (nose/ears/shoulders) catches head turns, leaning,
+//     relocating the laptop, walking away.
+//   - Hand motion (wrists) catches gesturing, eating, drinking,
+//     stretching, picking things up — i.e. "not engaged with keyboard
+//     and mouse." When typing/mousing the wrist landmark itself is
+//     steady (fingers move, the wrist as a point doesn't), so this
+//     cleanly separates working from interacting with the room.
 const MOTION_BUFFER_SIZE = 5;
-const MOTION_THRESHOLD = 0.022;
+const BODY_MOTION_THRESHOLD = 0.022;
+const HAND_MOTION_THRESHOLD = 0.028;
 // Keep the "moving" state for this long after the last high-motion
 // frame so brief lulls in the middle of a gesture don't toggle alerts.
 const MOTION_COOLDOWN_MS = 3500;
-// Landmarks we care about for motion: nose, ears, shoulders. Hands
-// move constantly even when seated and would otherwise dominate.
-const MOTION_KEY_INDICES = [0, 7, 8, 11, 12];
+const BODY_MOTION_INDICES = [0, 7, 8, 11, 12]; // nose, ears, shoulders
+const HAND_MOTION_INDICES = [15, 16]; // wrists only — finger landmarks
+                                       // are too noisy and would fire on
+                                       // any hand activity at all.
 // Detection runs ~10 fps in foreground, ~2 fps when tab/window is hidden.
 // Posture changes slowly; >10 fps wastes CPU/GPU without changing UX.
 const FOREGROUND_DETECT_INTERVAL_MS = 100;
@@ -82,11 +86,12 @@ function loadStoredTone(): AlertTone {
 
 function frameDisplacement(
   curr: NormalizedLandmark[],
-  prev: NormalizedLandmark[]
+  prev: NormalizedLandmark[],
+  indices: number[]
 ): number {
   let total = 0;
   let count = 0;
-  for (const i of MOTION_KEY_INDICES) {
+  for (const i of indices) {
     const c = curr[i];
     const p = prev[i];
     if (!c || !p) continue;
@@ -117,6 +122,7 @@ export function usePostureMonitor() {
   const sessionStatsRef = useRef<SessionStats | null>(null);
   const prevLandmarksRef = useRef<NormalizedLandmark[] | null>(null);
   const motionBufferRef = useRef<number[]>([]);
+  const handMotionBufferRef = useRef<number[]>([]);
   const motionUntilRef = useRef<number>(0);
   const isMovingRef = useRef<boolean>(false);
   const [isMoving, setIsMoving] = useState(false);
@@ -363,19 +369,40 @@ export function usePostureMonitor() {
           if (detection.landmarks && detection.landmarks.length > 0) {
             const currentLandmarks = detection.landmarks[0];
 
-            // Motion gate: compare against the previous frame's landmarks
-            // and average over a small buffer. If recent motion is high
-            // (user moving laptop, talking with gestures, stretching), pose
-            // scores are unreliable — suppress alerts, reset the bad
-            // timer, and skip stats accumulation until things settle.
+            // Motion gate: two parallel signals. Body motion (head /
+            // shoulders) catches leaning, head turns, walking away. Hand
+            // motion (wrists) catches gesturing, eating, picking things
+            // up — i.e. "not engaged with keyboard and mouse," since when
+            // typing the wrist landmark itself is steady even though
+            // fingers fly around. Either signal above its threshold
+            // counts as moving.
             const nowForMotion = Date.now();
             if (prevLandmarksRef.current) {
-              const m = frameDisplacement(currentLandmarks, prevLandmarksRef.current);
-              const buf = motionBufferRef.current;
-              buf.push(m);
-              if (buf.length > MOTION_BUFFER_SIZE) buf.shift();
-              const recent = buf.reduce((s, v) => s + v, 0) / buf.length;
-              if (recent > MOTION_THRESHOLD) {
+              const bodyM = frameDisplacement(
+                currentLandmarks,
+                prevLandmarksRef.current,
+                BODY_MOTION_INDICES
+              );
+              const handM = frameDisplacement(
+                currentLandmarks,
+                prevLandmarksRef.current,
+                HAND_MOTION_INDICES
+              );
+
+              const bodyBuf = motionBufferRef.current;
+              bodyBuf.push(bodyM);
+              if (bodyBuf.length > MOTION_BUFFER_SIZE) bodyBuf.shift();
+              const bodyRecent = bodyBuf.reduce((s, v) => s + v, 0) / bodyBuf.length;
+
+              const handBuf = handMotionBufferRef.current;
+              handBuf.push(handM);
+              if (handBuf.length > MOTION_BUFFER_SIZE) handBuf.shift();
+              const handRecent = handBuf.reduce((s, v) => s + v, 0) / handBuf.length;
+
+              if (
+                bodyRecent > BODY_MOTION_THRESHOLD ||
+                handRecent > HAND_MOTION_THRESHOLD
+              ) {
                 motionUntilRef.current = nowForMotion + MOTION_COOLDOWN_MS;
               }
             }
@@ -469,6 +496,7 @@ export function usePostureMonitor() {
             // first frame after they return.
             prevLandmarksRef.current = null;
             motionBufferRef.current = [];
+            handMotionBufferRef.current = [];
           }
         }
 
@@ -529,6 +557,7 @@ export function usePostureMonitor() {
     audioCtxRef.current = null;
     prevLandmarksRef.current = null;
     motionBufferRef.current = [];
+    handMotionBufferRef.current = [];
     motionUntilRef.current = 0;
     isMovingRef.current = false;
     setIsMoving(false);
