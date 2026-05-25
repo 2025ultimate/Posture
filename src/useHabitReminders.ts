@@ -51,7 +51,11 @@ function showNotification(body: string): void {
   }
 }
 
-export function useHabitReminders(playAlert: () => void, speak: (text: string) => void) {
+export function useHabitReminders(
+  playAlert: () => void,
+  speak: (text: string) => void,
+  remindersEnabled: boolean = true
+) {
   const [habits, setHabits] = usePersistedState<Record<HabitKey, HabitSetting>>(
     "postureguard.habits",
     DEFAULTS
@@ -60,6 +64,7 @@ export function useHabitReminders(playAlert: () => void, speak: (text: string) =
   const habitsRef = useRef(habits);
   const playAlertRef = useRef(playAlert);
   const speakRef = useRef(speak);
+  const enabledRef = useRef(remindersEnabled);
 
   useEffect(() => {
     habitsRef.current = habits;
@@ -70,9 +75,17 @@ export function useHabitReminders(playAlert: () => void, speak: (text: string) =
   useEffect(() => {
     speakRef.current = speak;
   }, [speak]);
+  useEffect(() => {
+    enabledRef.current = remindersEnabled;
+  }, [remindersEnabled]);
 
   useEffect(() => {
     const tick = () => {
+      // When the user has paused alerts globally, skip firing entirely.
+      // The nextFireAt values stay put, so any reminders that came due
+      // during the pause will fire on the next tick after they unpause.
+      if (!enabledRef.current) return;
+
       const now = Date.now();
       const due: HabitKey[] = [];
       (Object.keys(habitsRef.current) as HabitKey[]).forEach((k) => {

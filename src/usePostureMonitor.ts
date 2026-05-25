@@ -216,6 +216,8 @@ export function usePostureMonitor() {
     let dominantActivity: PostureResult["activity"] = "working";
     if ((activityCounts.phone_call ?? 0) >= stickyThreshold) {
       dominantActivity = "phone_call";
+    } else if ((activityCounts.phone_browsing ?? 0) >= stickyThreshold) {
+      dominantActivity = "phone_browsing";
     } else if ((activityCounts.talking_to_someone ?? 0) >= stickyThreshold) {
       dominantActivity = "talking_to_someone";
     } else if ((activityCounts.away ?? 0) >= stickyThreshold) {
@@ -354,6 +356,7 @@ export function usePostureMonitor() {
             const suppressAlerts =
               alertsPausedRef.current ||
               smoothed.activity === "phone_call" ||
+              smoothed.activity === "phone_browsing" ||
               smoothed.activity === "talking_to_someone" ||
               smoothed.activity === "away";
 

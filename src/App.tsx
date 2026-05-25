@@ -13,6 +13,7 @@ type Theme = "light" | "dark";
 const ACTIVITY_LABELS: Record<string, { label: string; desc: string }> = {
   working: { label: "Working", desc: "Monitoring posture" },
   phone_call: { label: "On a call", desc: "Alerts paused while on phone" },
+  phone_browsing: { label: "On phone", desc: "Alerts paused — looking at phone" },
   writing: { label: "Writing", desc: "Head-down work detected" },
   talking_to_someone: { label: "Talking", desc: "Alerts paused while talking" },
   away: { label: "Away", desc: "Not in front of screen" },
@@ -45,7 +46,11 @@ export default function App() {
     startDutyCycle, stopDutyCycle,
   } = usePostureMonitor();
 
-  const { habits, setEnabled, setHabitInterval, snooze } = useHabitReminders(playAlert, speak);
+  const { habits, setEnabled, setHabitInterval, snooze } = useHabitReminders(
+    playAlert,
+    speak,
+    !alertsPaused
+  );
 
   const [theme, setTheme] = usePersistedState<Theme>("postureguard.theme", "dark");
   useEffect(() => {
@@ -308,6 +313,28 @@ export default function App() {
                       />
                     </svg>
                   )}
+                  {activity === "phone_browsing" && (
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                      <rect
+                        x="7"
+                        y="2"
+                        width="10"
+                        height="20"
+                        rx="2"
+                        stroke="currentColor"
+                        strokeWidth="1.8"
+                      />
+                      <line
+                        x1="11"
+                        y1="18"
+                        x2="13"
+                        y2="18"
+                        stroke="currentColor"
+                        strokeWidth="1.8"
+                        strokeLinecap="round"
+                      />
+                    </svg>
+                  )}
                   {activity === "writing" && (
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
                       <path
@@ -351,7 +378,7 @@ export default function App() {
             {state === "running" && alertsPaused && (
               <div className="paused-banner">
                 <span className="paused-dot" />
-                Alerts paused — posture is still being tracked
+                All alerts paused (posture + reminders) — tracking continues
               </div>
             )}
 
