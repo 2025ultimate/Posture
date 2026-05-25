@@ -4,6 +4,7 @@ export type PostureStatus = "good" | "bad" | "unknown";
 export type ActivityContext =
   | "working"
   | "phone_call"
+  | "phone_browsing"
   | "writing"
   | "talking_to_someone"
   | "away";
@@ -133,11 +134,12 @@ function detectActivity(landmarks: NormalizedLandmark[]): ActivityContext {
     }
   }
 
-  // Head-down work (writing / reading on desk): compute the neck angle
-  // (shoulder-mid → ear-mid vector) and compare to vertical. A normal
-  // upright posture has the ears almost directly above the shoulders so
-  // the angle is near 0°. Bending forward to write tips this angle past
-  // ~25° even when the ears are still well above the shoulder line.
+  // Head-down activities (phone browsing or writing): compute the neck
+  // angle (shoulder-mid → ear-mid vector) vs vertical. Normal upright
+  // posture sits at ~0°; bending forward to look at a phone or desk
+  // tips this past ~20° even when the ears are still above the shoulder
+  // line. Differentiator between the two: phone browsing has a hand
+  // raised at chest/face level holding the device, writing does not.
   if (
     visible(nose) &&
     visible(leftShoulder) &&
@@ -149,29 +151,62 @@ function detectActivity(landmarks: NormalizedLandmark[]): ActivityContext {
     const earMid = midpoint(leftEar, rightEar);
     const dx = earMid.x - shoulderMid.x;
     const dy = shoulderMid.y - earMid.y; // positive = ear above shoulder
-    // Length of the neck vector, used to normalise the angle calc.
+    const shoulderWidth = distance(leftShoulder, rightShoulder);
     const len = Math.sqrt(dx * dx + dy * dy);
     if (len > 0) {
-      // angle from the vertical (up). 0° = perfectly straight neck.
-      // Use atan2(|dx|, dy) so the sign of dx doesn't matter — leaning
-      // forward in either direction counts. When dy <= 0 the head has
-      // dropped below the shoulders entirely, which is unambiguous.
       const neckFromVertical =
         dy <= 0 ? 90 : (Math.atan2(Math.abs(dx), dy) * 180) / Math.PI;
-      // Combine with the nose-vs-eye check: when looking down, the nose
-      // ends up below the eye line by a notable margin. Together these
-      // are very specific to "head bowed at desk".
+
       let nosBelowEyes = false;
       if (visible(leftEye) && visible(rightEye)) {
         const eyeMidY = (leftEye.y + rightEye.y) / 2;
         const eyeDist = distance(leftEye, rightEye);
         nosBelowEyes = eyeDist > 0 && nose.y - eyeMidY > eyeDist * 0.55;
       }
-      if (neckFromVertical > 28 && nosBelowEyes) {
-        return "writing";
-      }
-      if (neckFromVertical > 45) {
-        return "writing";
+
+      const headBentForward =
+        (neckFromVertical > 20 && nosBelowEyes) || neckFromVertical > 35;
+
+      if (headBentForward) {
+        // Hand-raised check: any hand landmark sitting in the "phone
+        // holding" zone (between roughly face level and just below the
+        // shoulder line, anywhere across the torso horizontally). The
+        // hand is often partially occluded by the phone itself, so use
+        // a low visibility floor and scan all hand-tip landmarks.
+        const handZoneTop = nose.y - shoulderWidth * 0.5;
+        const handZoneBottom = shoulderMid.y + shoulderWidth * 0.6;
+        const handLeftBound = Math.min(leftShoulder.x, rightShoulder.x) - shoulderWidth * 0.5;
+        const handRightBound = Math.max(leftShoulder.x, rightShoulder.x) + shoulderWidth * 0.5;
+
+        const handLandmarks = [
+          ...LEFT_HAND_POINTS,
+          ...RIGHT_HAND_POINTS,
+        ];
+        let handInPhoneZone = false;
+        for (const i of handLandmarks) {
+          const h = landmarks[i];
+          if (!visible(h, 0.2)) continue;
+          if (
+            h.y > handZoneTop &&
+            h.y < handZoneBottom &&
+            h.x > handLeftBound &&
+            h.x < handRightBound
+          ) {
+            handInPhoneZone = true;
+            break;
+          }
+        }
+
+        if (handInPhoneZone) {
+          return "phone_browsing";
+        }
+
+        // No hand visible in the phone zone — assume head-down desk work.
+        // Keep stricter thresholds for writing so we don't classify every
+        // forward lean as bad-posture writing.
+        if ((neckFromVertical > 28 && nosBelowEyes) || neckFromVertical > 45) {
+          return "writing";
+        }
       }
     }
   }
