@@ -27,8 +27,20 @@ const LEFT_EAR = 7;
 const RIGHT_EAR = 8;
 const LEFT_SHOULDER = 11;
 const RIGHT_SHOULDER = 12;
+const LEFT_ELBOW = 13;
+const RIGHT_ELBOW = 14;
 const LEFT_WRIST = 15;
 const RIGHT_WRIST = 16;
+// Hand-tip landmarks — closer to the ear than the wrist when holding a phone.
+const LEFT_PINKY = 17;
+const RIGHT_PINKY = 18;
+const LEFT_INDEX = 19;
+const RIGHT_INDEX = 20;
+const LEFT_THUMB = 21;
+const RIGHT_THUMB = 22;
+
+const LEFT_HAND_POINTS = [LEFT_WRIST, LEFT_PINKY, LEFT_INDEX, LEFT_THUMB];
+const RIGHT_HAND_POINTS = [RIGHT_WRIST, RIGHT_PINKY, RIGHT_INDEX, RIGHT_THUMB];
 
 function angle(a: NormalizedLandmark, b: NormalizedLandmark): number {
   return Math.atan2(b.y - a.y, b.x - a.x) * (180 / Math.PI);
@@ -47,63 +59,85 @@ function midpoint(a: NormalizedLandmark, b: NormalizedLandmark): NormalizedLandm
   };
 }
 
-function visible(lm: NormalizedLandmark | undefined): boolean {
-  return !!lm && (lm.visibility === undefined || lm.visibility >= 0.4);
+function visible(lm: NormalizedLandmark | undefined, threshold = 0.4): boolean {
+  return !!lm && (lm.visibility === undefined || lm.visibility >= threshold);
+}
+
+// Returns the minimum distance from any visible hand landmark to the target,
+// or Infinity if nothing visible enough is found.
+function minHandDistance(
+  landmarks: NormalizedLandmark[],
+  handIndices: number[],
+  target: NormalizedLandmark
+): number {
+  let min = Infinity;
+  for (const i of handIndices) {
+    const lm = landmarks[i];
+    // Hand landmarks are often partially occluded by the phone/face when
+    // someone is on a call. Use a lower visibility threshold so we don't
+    // miss the gesture.
+    if (visible(lm, 0.2)) {
+      const d = distance(lm, target);
+      if (d < min) min = d;
+    }
+  }
+  return min;
 }
 
 function detectActivity(landmarks: NormalizedLandmark[]): ActivityContext {
   const nose = landmarks[NOSE];
+  const leftEye = landmarks[LEFT_EYE];
+  const rightEye = landmarks[RIGHT_EYE];
   const leftEar = landmarks[LEFT_EAR];
   const rightEar = landmarks[RIGHT_EAR];
   const leftShoulder = landmarks[LEFT_SHOULDER];
   const rightShoulder = landmarks[RIGHT_SHOULDER];
-  const leftWrist = landmarks[LEFT_WRIST];
-  const rightWrist = landmarks[RIGHT_WRIST];
+  const leftElbow = landmarks[LEFT_ELBOW];
+  const rightElbow = landmarks[RIGHT_ELBOW];
 
-  // Phone call: wrist near either ear
-  if (visible(leftEar) && visible(rightEar)) {
+  // Phone call: a hand is up near the head OR an elbow is raised near
+  // shoulder level (the classic "phone at ear" elbow lift).
+  if (visible(leftEar) && visible(rightEar) && visible(leftShoulder) && visible(rightShoulder)) {
     const headSize = distance(leftEar, rightEar);
-    if (headSize > 0) {
-      const phoneThreshold = headSize * 1.2;
-      if (visible(leftWrist)) {
-        if (
-          distance(leftWrist, leftEar) < phoneThreshold ||
-          distance(leftWrist, rightEar) < phoneThreshold
-        ) {
-          return "phone_call";
-        }
-      }
-      if (visible(rightWrist)) {
-        if (
-          distance(rightWrist, rightEar) < phoneThreshold ||
-          distance(rightWrist, leftEar) < phoneThreshold
-        ) {
-          return "phone_call";
-        }
-      }
-    }
-  }
-
-  // Talking to someone: head turned significantly sideways
-  // When facing camera, both ears have similar visibility AND nose sits between them horizontally.
-  // When turned sideways, one ear is much more visible than the other and nose drifts toward that side.
-  if (visible(nose) && visible(leftShoulder) && visible(rightShoulder)) {
-    const leftEarVis = leftEar?.visibility ?? 0;
-    const rightEarVis = rightEar?.visibility ?? 0;
-    const earVisDiff = Math.abs(leftEarVis - rightEarVis);
     const shoulderMid = midpoint(leftShoulder, rightShoulder);
-    const shoulderWidth = distance(leftShoulder, rightShoulder);
-    const noseOffset = Math.abs(nose.x - shoulderMid.x);
-    if (
-      shoulderWidth > 0 &&
-      earVisDiff > 0.35 &&
-      noseOffset > shoulderWidth * 0.3
-    ) {
-      return "talking_to_someone";
+    if (headSize > 0) {
+      // Generous radius: a hand within ~1.6 head-widths of either ear counts.
+      // Using all hand landmarks (wrist + pinky + index + thumb) so we catch
+      // the case where the wrist is obscured but a finger is visible.
+      const phoneRadius = headSize * 1.6;
+      const leftHandNearLeftEar = minHandDistance(landmarks, LEFT_HAND_POINTS, leftEar);
+      const leftHandNearRightEar = minHandDistance(landmarks, LEFT_HAND_POINTS, rightEar);
+      const rightHandNearLeftEar = minHandDistance(landmarks, RIGHT_HAND_POINTS, leftEar);
+      const rightHandNearRightEar = minHandDistance(landmarks, RIGHT_HAND_POINTS, rightEar);
+
+      if (
+        leftHandNearLeftEar < phoneRadius ||
+        leftHandNearRightEar < phoneRadius ||
+        rightHandNearLeftEar < phoneRadius ||
+        rightHandNearRightEar < phoneRadius
+      ) {
+        return "phone_call";
+      }
+
+      // Secondary: an elbow lifted to shoulder-height or above strongly
+      // suggests the hand is up at the ear, even if the hand landmarks
+      // are completely hidden by the phone or face.
+      const shoulderWidth = distance(leftShoulder, rightShoulder);
+      const elbowLiftThreshold = shoulderMid.y + shoulderWidth * 0.1;
+      if (
+        (visible(leftElbow, 0.3) && leftElbow.y < elbowLiftThreshold) ||
+        (visible(rightElbow, 0.3) && rightElbow.y < elbowLiftThreshold)
+      ) {
+        return "phone_call";
+      }
     }
   }
 
-  // Writing on desk: head significantly below shoulder line (looking way down)
+  // Head-down work (writing / reading on desk): compute the neck angle
+  // (shoulder-mid → ear-mid vector) and compare to vertical. A normal
+  // upright posture has the ears almost directly above the shoulders so
+  // the angle is near 0°. Bending forward to write tips this angle past
+  // ~25° even when the ears are still well above the shoulder line.
   if (
     visible(nose) &&
     visible(leftShoulder) &&
@@ -113,14 +147,64 @@ function detectActivity(landmarks: NormalizedLandmark[]): ActivityContext {
   ) {
     const shoulderMid = midpoint(leftShoulder, rightShoulder);
     const earMid = midpoint(leftEar, rightEar);
+    const dx = earMid.x - shoulderMid.x;
+    const dy = shoulderMid.y - earMid.y; // positive = ear above shoulder
+    // Length of the neck vector, used to normalise the angle calc.
+    const len = Math.sqrt(dx * dx + dy * dy);
+    if (len > 0) {
+      // angle from the vertical (up). 0° = perfectly straight neck.
+      // Use atan2(|dx|, dy) so the sign of dx doesn't matter — leaning
+      // forward in either direction counts. When dy <= 0 the head has
+      // dropped below the shoulders entirely, which is unambiguous.
+      const neckFromVertical =
+        dy <= 0 ? 90 : (Math.atan2(Math.abs(dx), dy) * 180) / Math.PI;
+      // Combine with the nose-vs-eye check: when looking down, the nose
+      // ends up below the eye line by a notable margin. Together these
+      // are very specific to "head bowed at desk".
+      let nosBelowEyes = false;
+      if (visible(leftEye) && visible(rightEye)) {
+        const eyeMidY = (leftEye.y + rightEye.y) / 2;
+        const eyeDist = distance(leftEye, rightEye);
+        nosBelowEyes = eyeDist > 0 && nose.y - eyeMidY > eyeDist * 0.55;
+      }
+      if (neckFromVertical > 28 && nosBelowEyes) {
+        return "writing";
+      }
+      if (neckFromVertical > 45) {
+        return "writing";
+      }
+    }
+  }
+
+  // Talking to someone: head turned far enough sideways that one ear is
+  // much more visible than the other AND the nose drifts toward the
+  // visible-ear side relative to the shoulders.
+  if (visible(nose) && visible(leftShoulder) && visible(rightShoulder)) {
+    const leftEarVis = leftEar?.visibility ?? 0;
+    const rightEarVis = rightEar?.visibility ?? 0;
+    const earVisRatio =
+      Math.max(leftEarVis, rightEarVis) /
+      Math.max(0.01, Math.min(leftEarVis, rightEarVis));
+    const shoulderMid = midpoint(leftShoulder, rightShoulder);
     const shoulderWidth = distance(leftShoulder, rightShoulder);
-    // ears below or very close to shoulders -> head bent forward strongly
+    const noseOffset = Math.abs(nose.x - shoulderMid.x);
+
+    // Either: clearly asymmetric ear visibility, OR a strong nose drift,
+    // OR one eye becoming nearly invisible while the other is clear.
+    let eyeAsymmetric = false;
+    if (leftEye && rightEye) {
+      const lv = leftEye.visibility ?? 0;
+      const rv = rightEye.visibility ?? 0;
+      eyeAsymmetric = Math.abs(lv - rv) > 0.4 || Math.min(lv, rv) < 0.2;
+    }
+
     if (
       shoulderWidth > 0 &&
-      earMid.y > shoulderMid.y - shoulderWidth * 0.15 &&
-      nose.y > shoulderMid.y - shoulderWidth * 0.4
+      ((earVisRatio > 2.2 && noseOffset > shoulderWidth * 0.22) ||
+        noseOffset > shoulderWidth * 0.45 ||
+        (eyeAsymmetric && noseOffset > shoulderWidth * 0.25))
     ) {
-      return "writing";
+      return "talking_to_someone";
     }
   }
 
@@ -139,7 +223,9 @@ export function analyzePosture(landmarks: NormalizedLandmark[]): PostureResult {
   const leftEar = landmarks[LEFT_EAR];
   const rightEar = landmarks[RIGHT_EAR];
 
-  const coreVisible = [nose, leftShoulder, rightShoulder, leftEar, rightEar].every(visible);
+  const coreVisible = [nose, leftShoulder, rightShoulder, leftEar, rightEar].every((l) =>
+    visible(l)
+  );
   if (!coreVisible) {
     return {
       status: "unknown",

@@ -203,17 +203,26 @@ export function usePostureMonitor() {
     const badCount = buf.filter((r) => r.status === "bad").length;
     const goodCount = buf.filter((r) => r.status === "good").length;
 
-    // Pick the most-common activity over the buffer so single-frame
-    // misdetections (a wrist briefly near an ear, head turning) don't
-    // toggle the UI badge or suppress alerts unexpectedly.
+    // Activity selection biased toward suppression-worthy contexts: false
+    // negatives (nagging someone mid-call) are far worse than false
+    // positives (briefly showing a "phone" badge). If the user has been
+    // detected as on a call / talking / away in ANY of the recent frames,
+    // honor that and keep the badge sticky.
     const activityCounts: Record<string, number> = {};
     buf.forEach((r) => {
       activityCounts[r.activity] = (activityCounts[r.activity] ?? 0) + 1;
     });
-    const dominantActivity = (Object.entries(activityCounts).reduce(
-      (best, cur) => (cur[1] > best[1] ? cur : best),
-      ["working", 0]
-    )[0]) as PostureResult["activity"];
+    const stickyThreshold = Math.max(1, Math.floor(SMOOTHING_FRAMES / 4));
+    let dominantActivity: PostureResult["activity"] = "working";
+    if ((activityCounts.phone_call ?? 0) >= stickyThreshold) {
+      dominantActivity = "phone_call";
+    } else if ((activityCounts.talking_to_someone ?? 0) >= stickyThreshold) {
+      dominantActivity = "talking_to_someone";
+    } else if ((activityCounts.away ?? 0) >= stickyThreshold) {
+      dominantActivity = "away";
+    } else if ((activityCounts.writing ?? 0) >= stickyThreshold) {
+      dominantActivity = "writing";
+    }
 
     if (buf.length < SMOOTHING_FRAMES / 2) return newResult;
     if (badCount > goodCount) return { ...newResult, activity: dominantActivity };
