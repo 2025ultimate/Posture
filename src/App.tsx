@@ -18,47 +18,21 @@ const ACTIVITY_LABELS: Record<string, { label: string; desc: string }> = {
   away: { label: "Away", desc: "Not in front of screen" },
 };
 
-const EXERCISES = [
-  {
-    title: "Neck rolls",
-    duration: "30s",
-    steps: "Slowly roll your head in a circle. Reverse direction halfway through.",
-  },
-  {
-    title: "Shoulder shrugs",
-    duration: "20s",
-    steps: "Raise shoulders to ears, hold 3 seconds, release. Repeat 8 times.",
-  },
-  {
-    title: "Chin tucks",
-    duration: "30s",
-    steps: "Pull chin straight back creating a double chin. Hold 5s. Repeat 5x.",
-  },
-  {
-    title: "Doorway chest stretch",
-    duration: "45s",
-    steps: "Stand in doorway, place forearms on frame, step forward gently.",
-  },
-  {
-    title: "Seated spinal twist",
-    duration: "30s",
-    steps: "Sit tall, rotate torso to one side using chair back. Hold 15s each side.",
-  },
-  {
-    title: "Wrist flexor stretch",
-    duration: "30s",
-    steps: "Extend arm, pull fingers back gently with opposite hand. Switch sides.",
-  },
-  {
-    title: "Eye palming",
-    duration: "60s",
-    steps: "Rub palms warm, cup over closed eyes. Relax and breathe deeply.",
-  },
-  {
-    title: "Upper back stretch",
-    duration: "30s",
-    steps: "Interlace fingers, push palms forward, round upper back outward.",
-  },
+interface Exercise {
+  title: string;
+  seconds: number;
+  steps: string;
+}
+
+const EXERCISES: Exercise[] = [
+  { title: "Neck rolls", seconds: 30, steps: "Slowly roll your head in a circle. Reverse direction halfway through." },
+  { title: "Shoulder shrugs", seconds: 20, steps: "Raise shoulders to ears, hold 3 seconds, release. Repeat 8 times." },
+  { title: "Chin tucks", seconds: 30, steps: "Pull chin straight back creating a double chin. Hold 5s. Repeat 5x." },
+  { title: "Doorway chest stretch", seconds: 45, steps: "Stand in doorway, place forearms on frame, step forward gently." },
+  { title: "Seated spinal twist", seconds: 30, steps: "Sit tall, rotate torso to one side using chair back. Hold 15s each side." },
+  { title: "Wrist flexor stretch", seconds: 30, steps: "Extend arm, pull fingers back gently with opposite hand. Switch sides." },
+  { title: "Eye palming", seconds: 60, steps: "Rub palms warm, cup over closed eyes. Relax and breathe deeply." },
+  { title: "Upper back stretch", seconds: 30, steps: "Interlace fingers, push palms forward, round upper back outward." },
 ];
 
 export default function App() {
@@ -83,12 +57,55 @@ export default function App() {
   const [offMin, setOffMin] = useState(1);
   const [showSettings, setShowSettings] = useState(false);
   const [exerciseIndex, setExerciseIndex] = useState(0);
+  const [exerciseSecondsLeft, setExerciseSecondsLeft] = useState<number | null>(null);
   const currentExercise = EXERCISES[exerciseIndex % EXERCISES.length];
-  const nextExercise = () => setExerciseIndex((i) => (i + 1) % EXERCISES.length);
+  const nextExercise = () => {
+    setExerciseSecondsLeft(null);
+    setExerciseIndex((i) => (i + 1) % EXERCISES.length);
+  };
+  const selectExercise = (i: number) => {
+    setExerciseSecondsLeft(null);
+    setExerciseIndex(i);
+  };
+  const startExerciseTimer = () => setExerciseSecondsLeft(currentExercise.seconds);
+  const stopExerciseTimer = () => setExerciseSecondsLeft(null);
+
+  useEffect(() => {
+    if (exerciseSecondsLeft === null) return;
+    const id = setTimeout(() => {
+      setExerciseSecondsLeft((s) => {
+        if (s === null) return null;
+        if (s <= 1) {
+          // Done — chime once.
+          playAlert();
+          return null;
+        }
+        return s - 1;
+      });
+    }, 1000);
+    return () => clearTimeout(id);
+  }, [exerciseSecondsLeft, playAlert]);
+
   const activity = result?.activity ?? "working";
   const activityInfo = ACTIVITY_LABELS[activity];
   const showActivityBadge =
     state === "running" && activity !== "working" && cameraPhase !== "off";
+
+  // Spacebar toggles pause when monitoring is active so users can react
+  // instantly to a meeting starting without aiming for the button.
+  useEffect(() => {
+    if (state !== "running") return;
+    const handler = (e: KeyboardEvent) => {
+      if (e.code !== "Space") return;
+      const target = e.target as HTMLElement | null;
+      const tag = target?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || target?.isContentEditable) return;
+      e.preventDefault();
+      toggleAlertsPaused();
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [state, toggleAlertsPaused]);
 
   const [historyBump, setHistoryBump] = useState(0);
   const insights = useMemo<Insights>(
@@ -249,7 +266,11 @@ export default function App() {
                   <button
                     className={`btn ${alertsPaused ? "btn-primary" : "btn-secondary"}`}
                     onClick={toggleAlertsPaused}
-                    title={alertsPaused ? "Resume alerts" : "Pause alerts"}
+                    title={
+                      alertsPaused
+                        ? "Resume alerts (Space)"
+                        : "Pause alerts (Space)"
+                    }
                   >
                     {alertsPaused ? (
                       <svg width="16" height="16" viewBox="0 0 18 18" fill="none">
@@ -262,6 +283,7 @@ export default function App() {
                       </svg>
                     )}
                     {alertsPaused ? "Resume Alerts" : "Pause Alerts"}
+                    <kbd className="btn-kbd">Space</kbd>
                   </button>
                   <button className="btn btn-danger" onClick={stopMonitoring}>
                     <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
@@ -359,16 +381,44 @@ export default function App() {
               <div className="exercise-current">
                 <div className="exercise-current-top">
                   <span className="exercise-current-title">{currentExercise.title}</span>
-                  <span className="exercise-current-duration">{currentExercise.duration}</span>
+                  <span className="exercise-current-duration">
+                    {exerciseSecondsLeft !== null
+                      ? `${exerciseSecondsLeft}s left`
+                      : `${currentExercise.seconds}s`}
+                  </span>
                 </div>
                 <p className="exercise-current-steps">{currentExercise.steps}</p>
+                {exerciseSecondsLeft !== null && (
+                  <div className="exercise-progress-bar">
+                    <div
+                      className="exercise-progress-fill"
+                      style={{
+                        width: `${
+                          ((currentExercise.seconds - exerciseSecondsLeft) /
+                            currentExercise.seconds) *
+                          100
+                        }%`,
+                      }}
+                    />
+                  </div>
+                )}
+                <button
+                  className={`btn exercise-start ${
+                    exerciseSecondsLeft !== null ? "btn-danger" : "btn-secondary"
+                  }`}
+                  onClick={
+                    exerciseSecondsLeft !== null ? stopExerciseTimer : startExerciseTimer
+                  }
+                >
+                  {exerciseSecondsLeft !== null ? "Stop timer" : "Start timer"}
+                </button>
               </div>
               <div className="exercises-grid">
                 {EXERCISES.map((ex, i) => (
                   <button
                     key={ex.title}
                     className={`exercise-chip ${i === exerciseIndex ? "exercise-chip-active" : ""}`}
-                    onClick={() => setExerciseIndex(i)}
+                    onClick={() => selectExercise(i)}
                   >
                     {ex.title}
                   </button>
