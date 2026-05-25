@@ -1,5 +1,6 @@
 import { useRef, useState, useCallback, useEffect } from "react";
 import { PoseLandmarker, FilesetResolver, DrawingUtils } from "@mediapipe/tasks-vision";
+import type { NormalizedLandmark } from "@mediapipe/tasks-vision";
 import { analyzePosture } from "./postureAnalysis";
 import type { PostureResult } from "./postureAnalysis";
 import { appendSession } from "./sessionHistory";
@@ -37,6 +38,24 @@ const BAD_POSTURE_BEEP_INTERVAL_MS = 5000;
 const VOICE_ANNOUNCE_THRESHOLD_MS = 15000;
 const VOICE_ANNOUNCE_INTERVAL_MS = 20000;
 const SMOOTHING_FRAMES = 8;
+// Motion gate: two parallel signals, either one trips it.
+//   - Body motion (nose/ears/shoulders) catches head turns, leaning,
+//     relocating the laptop, walking away.
+//   - Hand motion (wrists) catches gesturing, eating, drinking,
+//     stretching, picking things up — i.e. "not engaged with keyboard
+//     and mouse." When typing/mousing the wrist landmark itself is
+//     steady (fingers move, the wrist as a point doesn't), so this
+//     cleanly separates working from interacting with the room.
+const MOTION_BUFFER_SIZE = 5;
+const BODY_MOTION_THRESHOLD = 0.022;
+const HAND_MOTION_THRESHOLD = 0.028;
+// Keep the "moving" state for this long after the last high-motion
+// frame so brief lulls in the middle of a gesture don't toggle alerts.
+const MOTION_COOLDOWN_MS = 3500;
+const BODY_MOTION_INDICES = [0, 7, 8, 11, 12]; // nose, ears, shoulders
+const HAND_MOTION_INDICES = [15, 16]; // wrists only — finger landmarks
+                                       // are too noisy and would fire on
+                                       // any hand activity at all.
 // Detection runs ~10 fps in foreground, ~2 fps when tab/window is hidden.
 // Posture changes slowly; >10 fps wastes CPU/GPU without changing UX.
 const FOREGROUND_DETECT_INTERVAL_MS = 100;
@@ -65,6 +84,26 @@ function loadStoredTone(): AlertTone {
   return "beep";
 }
 
+function frameDisplacement(
+  curr: NormalizedLandmark[],
+  prev: NormalizedLandmark[],
+  indices: number[]
+): number {
+  let total = 0;
+  let count = 0;
+  for (const i of indices) {
+    const c = curr[i];
+    const p = prev[i];
+    if (!c || !p) continue;
+    if ((c.visibility ?? 1) < 0.3 || (p.visibility ?? 1) < 0.3) continue;
+    const dx = c.x - p.x;
+    const dy = c.y - p.y;
+    total += Math.sqrt(dx * dx + dy * dy);
+    count += 1;
+  }
+  return count > 0 ? total / count : 0;
+}
+
 export function usePostureMonitor() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -81,6 +120,12 @@ export function usePostureMonitor() {
   const alertToneRef = useRef<AlertTone>(loadStoredTone());
   const drawingUtilsRef = useRef<DrawingUtils | null>(null);
   const sessionStatsRef = useRef<SessionStats | null>(null);
+  const prevLandmarksRef = useRef<NormalizedLandmark[] | null>(null);
+  const motionBufferRef = useRef<number[]>([]);
+  const handMotionBufferRef = useRef<number[]>([]);
+  const motionUntilRef = useRef<number>(0);
+  const isMovingRef = useRef<boolean>(false);
+  const [isMoving, setIsMoving] = useState(false);
   const [sessionsVersion, setSessionsVersion] = useState(0);
 
   const [state, setState] = useState<MonitorState>("idle");
@@ -322,7 +367,53 @@ export function usePostureMonitor() {
           }
 
           if (detection.landmarks && detection.landmarks.length > 0) {
-            const raw = analyzePosture(detection.landmarks[0]);
+            const currentLandmarks = detection.landmarks[0];
+
+            // Motion gate: two parallel signals. Body motion (head /
+            // shoulders) catches leaning, head turns, walking away. Hand
+            // motion (wrists) catches gesturing, eating, picking things
+            // up — i.e. "not engaged with keyboard and mouse," since when
+            // typing the wrist landmark itself is steady even though
+            // fingers fly around. Either signal above its threshold
+            // counts as moving.
+            const nowForMotion = Date.now();
+            if (prevLandmarksRef.current) {
+              const bodyM = frameDisplacement(
+                currentLandmarks,
+                prevLandmarksRef.current,
+                BODY_MOTION_INDICES
+              );
+              const handM = frameDisplacement(
+                currentLandmarks,
+                prevLandmarksRef.current,
+                HAND_MOTION_INDICES
+              );
+
+              const bodyBuf = motionBufferRef.current;
+              bodyBuf.push(bodyM);
+              if (bodyBuf.length > MOTION_BUFFER_SIZE) bodyBuf.shift();
+              const bodyRecent = bodyBuf.reduce((s, v) => s + v, 0) / bodyBuf.length;
+
+              const handBuf = handMotionBufferRef.current;
+              handBuf.push(handM);
+              if (handBuf.length > MOTION_BUFFER_SIZE) handBuf.shift();
+              const handRecent = handBuf.reduce((s, v) => s + v, 0) / handBuf.length;
+
+              if (
+                bodyRecent > BODY_MOTION_THRESHOLD ||
+                handRecent > HAND_MOTION_THRESHOLD
+              ) {
+                motionUntilRef.current = nowForMotion + MOTION_COOLDOWN_MS;
+              }
+            }
+            prevLandmarksRef.current = currentLandmarks;
+            const moving = nowForMotion < motionUntilRef.current;
+            if (moving !== isMovingRef.current) {
+              isMovingRef.current = moving;
+              setIsMoving(moving);
+            }
+
+            const raw = analyzePosture(currentLandmarks);
             const smoothed = smoothedResult(raw);
             setResult(smoothed);
 
@@ -331,10 +422,11 @@ export function usePostureMonitor() {
             if (stats) {
               const dt = now - stats.lastTickAt;
               stats.lastTickAt = now;
-              // Don't accumulate time the user spent away from the desk —
-              // it would inflate the session length and skew the bad-%
-              // calculations in insights.
-              if (smoothed.activity !== "away") {
+              // Don't accumulate time the user spent away from the desk
+              // or moving around — the readings during those windows
+              // aren't representative of their working posture and would
+              // skew the bad-% in insights.
+              if (smoothed.activity !== "away" && !moving) {
                 stats.totalMs += dt;
                 if (smoothed.status === "bad") {
                   stats.badMs += dt;
@@ -351,16 +443,25 @@ export function usePostureMonitor() {
             }
 
             // Suppress alerts when the user is on a phone call, talking to
-            // someone, or away from the desk — but still track bad posture
-            // duration so insights stay accurate.
+            // someone, away from the desk, or moving rapidly — but still
+            // track posture in the result so the UI reflects reality.
             const suppressAlerts =
               alertsPausedRef.current ||
+              moving ||
               smoothed.activity === "phone_call" ||
               smoothed.activity === "phone_browsing" ||
               smoothed.activity === "talking_to_someone" ||
               smoothed.activity === "away";
 
-            if (smoothed.status === "bad") {
+            if (moving) {
+              // Treat motion as a fresh start: don't carry a bad-posture
+              // duration through the move, so resuming doesn't fire
+              // immediately.
+              if (badStartRef.current !== null) {
+                badStartRef.current = null;
+                setBadDuration(0);
+              }
+            } else if (smoothed.status === "bad") {
               if (badStartRef.current === null) badStartRef.current = now;
               const elapsed = now - badStartRef.current;
               setBadDuration(Math.floor(elapsed / 1000));
@@ -390,6 +491,12 @@ export function usePostureMonitor() {
             // to whatever activity they resume with.
             const stats = sessionStatsRef.current;
             if (stats) stats.lastTickAt = Date.now();
+            // Clear motion tracking — there's no person to track motion
+            // for, and we don't want a stale frame compared against the
+            // first frame after they return.
+            prevLandmarksRef.current = null;
+            motionBufferRef.current = [];
+            handMotionBufferRef.current = [];
           }
         }
 
@@ -448,6 +555,12 @@ export function usePostureMonitor() {
       void audioCtxRef.current.close();
     }
     audioCtxRef.current = null;
+    prevLandmarksRef.current = null;
+    motionBufferRef.current = [];
+    handMotionBufferRef.current = [];
+    motionUntilRef.current = 0;
+    isMovingRef.current = false;
+    setIsMoving(false);
     setBadDuration(0);
     setResult(null);
     setCameraPhase("always");
@@ -525,6 +638,7 @@ export function usePostureMonitor() {
     setAlertTone,
     alertsPaused,
     toggleAlertsPaused,
+    isMoving,
     playAlert,
     speak,
     sessionsVersion,

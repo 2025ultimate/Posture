@@ -40,7 +40,7 @@ export default function App() {
   const {
     videoRef, canvasRef, state, result, error, badDuration,
     cameraPhase, dutyCycle, alertTone, setAlertTone,
-    alertsPaused, toggleAlertsPaused,
+    alertsPaused, toggleAlertsPaused, isMoving,
     playAlert, speak,
     sessionsVersion, startMonitoring, stopMonitoring,
     startDutyCycle, stopDutyCycle,
@@ -49,7 +49,7 @@ export default function App() {
   const { habits, setEnabled, setHabitInterval, snooze } = useHabitReminders(
     playAlert,
     speak,
-    !alertsPaused
+    state === "running" && !alertsPaused
   );
 
   const [theme, setTheme] = usePersistedState<Theme>("postureguard.theme", "dark");
@@ -379,6 +379,13 @@ export default function App() {
               <div className="paused-banner">
                 <span className="paused-dot" />
                 All alerts paused (posture + reminders) — tracking continues
+              </div>
+            )}
+
+            {state === "running" && !alertsPaused && isMoving && (
+              <div className="motion-banner">
+                <span className="motion-dot" />
+                Movement detected — pausing alerts until you settle
               </div>
             )}
 
