@@ -94,7 +94,17 @@ export function usePostureMonitor() {
     offDuration: 60,
   });
   const [alertTone, setAlertTone] = useState<AlertTone>(loadStoredTone);
+  const [alertsPaused, setAlertsPaused] = useState(false);
+  const alertsPausedRef = useRef(false);
   const badStartRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    alertsPausedRef.current = alertsPaused;
+  }, [alertsPaused]);
+
+  const toggleAlertsPaused = useCallback(() => {
+    setAlertsPaused((p) => !p);
+  }, []);
 
   useEffect(() => {
     alertToneRef.current = alertTone;
@@ -192,9 +202,22 @@ export function usePostureMonitor() {
     if (buf.length > SMOOTHING_FRAMES) buf.shift();
     const badCount = buf.filter((r) => r.status === "bad").length;
     const goodCount = buf.filter((r) => r.status === "good").length;
+
+    // Pick the most-common activity over the buffer so single-frame
+    // misdetections (a wrist briefly near an ear, head turning) don't
+    // toggle the UI badge or suppress alerts unexpectedly.
+    const activityCounts: Record<string, number> = {};
+    buf.forEach((r) => {
+      activityCounts[r.activity] = (activityCounts[r.activity] ?? 0) + 1;
+    });
+    const dominantActivity = (Object.entries(activityCounts).reduce(
+      (best, cur) => (cur[1] > best[1] ? cur : best),
+      ["working", 0]
+    )[0]) as PostureResult["activity"];
+
     if (buf.length < SMOOTHING_FRAMES / 2) return newResult;
-    if (badCount > goodCount) return newResult;
-    return { ...newResult, status: "good", issues: [] };
+    if (badCount > goodCount) return { ...newResult, activity: dominantActivity };
+    return { ...newResult, status: "good", issues: [], activity: dominantActivity };
   }, []);
 
   const stopCamera = useCallback(() => {
@@ -297,25 +320,41 @@ export function usePostureMonitor() {
             if (stats) {
               const dt = now - stats.lastTickAt;
               stats.lastTickAt = now;
-              stats.totalMs += dt;
-              if (smoothed.status === "bad") {
-                stats.badMs += dt;
-                smoothed.issues.forEach((issue) => {
-                  stats.issueCounts[issue] = (stats.issueCounts[issue] ?? 0) + 1;
-                });
+              // Don't accumulate time the user spent away from the desk —
+              // it would inflate the session length and skew the bad-%
+              // calculations in insights.
+              if (smoothed.activity !== "away") {
+                stats.totalMs += dt;
+                if (smoothed.status === "bad") {
+                  stats.badMs += dt;
+                  smoothed.issues.forEach((issue) => {
+                    stats.issueCounts[issue] = (stats.issueCounts[issue] ?? 0) + 1;
+                  });
+                }
+                stats.scoreSums.neckTilt += smoothed.scores.neckTilt;
+                stats.scoreSums.shoulderLevel += smoothed.scores.shoulderLevel;
+                stats.scoreSums.forwardHead += smoothed.scores.forwardHead;
+                stats.scoreSums.eyeLevel += smoothed.scores.eyeLevel;
+                stats.sampleCount += 1;
               }
-              stats.scoreSums.neckTilt += smoothed.scores.neckTilt;
-              stats.scoreSums.shoulderLevel += smoothed.scores.shoulderLevel;
-              stats.scoreSums.forwardHead += smoothed.scores.forwardHead;
-              stats.scoreSums.eyeLevel += smoothed.scores.eyeLevel;
-              stats.sampleCount += 1;
             }
+
+            // Suppress alerts when the user is on a phone call, talking to
+            // someone, or away from the desk — but still track bad posture
+            // duration so insights stay accurate.
+            const suppressAlerts =
+              alertsPausedRef.current ||
+              smoothed.activity === "phone_call" ||
+              smoothed.activity === "talking_to_someone" ||
+              smoothed.activity === "away";
 
             if (smoothed.status === "bad") {
               if (badStartRef.current === null) badStartRef.current = now;
               const elapsed = now - badStartRef.current;
               setBadDuration(Math.floor(elapsed / 1000));
-              fireAlerts(elapsed, now);
+              if (!suppressAlerts) {
+                fireAlerts(elapsed, now);
+              }
             } else if (smoothed.status === "good") {
               if (badStartRef.current !== null) {
                 badStartRef.current = null;
@@ -327,7 +366,18 @@ export function usePostureMonitor() {
               status: "unknown",
               issues: ["No person detected"],
               scores: { neckTilt: 0, shoulderLevel: 0, forwardHead: 0, eyeLevel: 0 },
+              activity: "away",
             });
+            // Also reset bad-posture timer so no stale alert fires when the
+            // user returns.
+            if (badStartRef.current !== null) {
+              badStartRef.current = null;
+              setBadDuration(0);
+            }
+            // Advance lastTickAt so the time the user is away isn't billed
+            // to whatever activity they resume with.
+            const stats = sessionStatsRef.current;
+            if (stats) stats.lastTickAt = Date.now();
           }
         }
 
@@ -389,6 +439,7 @@ export function usePostureMonitor() {
     setBadDuration(0);
     setResult(null);
     setCameraPhase("always");
+    setAlertsPaused(false);
     setState("idle");
   }, [stopCamera]);
 
@@ -460,6 +511,8 @@ export function usePostureMonitor() {
     dutyCycle,
     alertTone,
     setAlertTone,
+    alertsPaused,
+    toggleAlertsPaused,
     playAlert,
     speak,
     sessionsVersion,

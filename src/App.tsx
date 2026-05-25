@@ -10,10 +10,37 @@ import "./App.css";
 
 type Theme = "light" | "dark";
 
+const ACTIVITY_LABELS: Record<string, { label: string; desc: string }> = {
+  working: { label: "Working", desc: "Monitoring posture" },
+  phone_call: { label: "On a call", desc: "Alerts paused while on phone" },
+  writing: { label: "Writing", desc: "Head-down work detected" },
+  talking_to_someone: { label: "Talking", desc: "Alerts paused while talking" },
+  away: { label: "Away", desc: "Not in front of screen" },
+};
+
+interface Exercise {
+  title: string;
+  seconds: number;
+  steps: string;
+}
+
+const EXERCISES: Exercise[] = [
+  { title: "Neck rolls", seconds: 30, steps: "Slowly roll your head in a circle. Reverse direction halfway through." },
+  { title: "Shoulder shrugs", seconds: 20, steps: "Raise shoulders to ears, hold 3 seconds, release. Repeat 8 times." },
+  { title: "Chin tucks", seconds: 30, steps: "Pull chin straight back creating a double chin. Hold 5s. Repeat 5x." },
+  { title: "Doorway chest stretch", seconds: 45, steps: "Stand in doorway, place forearms on frame, step forward gently." },
+  { title: "Seated spinal twist", seconds: 30, steps: "Sit tall, rotate torso to one side using chair back. Hold 15s each side." },
+  { title: "Wrist flexor stretch", seconds: 30, steps: "Extend arm, pull fingers back gently with opposite hand. Switch sides." },
+  { title: "Eye palming", seconds: 60, steps: "Rub palms warm, cup over closed eyes. Relax and breathe deeply." },
+  { title: "Upper back stretch", seconds: 30, steps: "Interlace fingers, push palms forward, round upper back outward." },
+];
+
 export default function App() {
   const {
     videoRef, canvasRef, state, result, error, badDuration,
-    cameraPhase, dutyCycle, alertTone, setAlertTone, playAlert, speak,
+    cameraPhase, dutyCycle, alertTone, setAlertTone,
+    alertsPaused, toggleAlertsPaused,
+    playAlert, speak,
     sessionsVersion, startMonitoring, stopMonitoring,
     startDutyCycle, stopDutyCycle,
   } = usePostureMonitor();
@@ -29,6 +56,56 @@ export default function App() {
   const [onMin, setOnMin] = useState(0.5);
   const [offMin, setOffMin] = useState(1);
   const [showSettings, setShowSettings] = useState(false);
+  const [exerciseIndex, setExerciseIndex] = useState(0);
+  const [exerciseSecondsLeft, setExerciseSecondsLeft] = useState<number | null>(null);
+  const currentExercise = EXERCISES[exerciseIndex % EXERCISES.length];
+  const nextExercise = () => {
+    setExerciseSecondsLeft(null);
+    setExerciseIndex((i) => (i + 1) % EXERCISES.length);
+  };
+  const selectExercise = (i: number) => {
+    setExerciseSecondsLeft(null);
+    setExerciseIndex(i);
+  };
+  const startExerciseTimer = () => setExerciseSecondsLeft(currentExercise.seconds);
+  const stopExerciseTimer = () => setExerciseSecondsLeft(null);
+
+  useEffect(() => {
+    if (exerciseSecondsLeft === null) return;
+    const id = setTimeout(() => {
+      setExerciseSecondsLeft((s) => {
+        if (s === null) return null;
+        if (s <= 1) {
+          // Done — chime once.
+          playAlert();
+          return null;
+        }
+        return s - 1;
+      });
+    }, 1000);
+    return () => clearTimeout(id);
+  }, [exerciseSecondsLeft, playAlert]);
+
+  const activity = result?.activity ?? "working";
+  const activityInfo = ACTIVITY_LABELS[activity];
+  const showActivityBadge =
+    state === "running" && activity !== "working" && cameraPhase !== "off";
+
+  // Spacebar toggles pause when monitoring is active so users can react
+  // instantly to a meeting starting without aiming for the button.
+  useEffect(() => {
+    if (state !== "running") return;
+    const handler = (e: KeyboardEvent) => {
+      if (e.code !== "Space") return;
+      const target = e.target as HTMLElement | null;
+      const tag = target?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || target?.isContentEditable) return;
+      e.preventDefault();
+      toggleAlertsPaused();
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [state, toggleAlertsPaused]);
 
   const [historyBump, setHistoryBump] = useState(0);
   const insights = useMemo<Insights>(
@@ -84,9 +161,9 @@ export default function App() {
           <div className="header-right">
             {state === "running" && (
               <>
-                <div className="live-badge">
+                <div className={`live-badge ${alertsPaused ? "live-badge-muted" : ""}`}>
                   <span className="live-dot" />
-                  {cameraPhase === "off" ? "PAUSED" : "LIVE"}
+                  {alertsPaused ? "MUTED" : cameraPhase === "off" ? "PAUSED" : "LIVE"}
                 </div>
                 {dutyCycle.enabled && (
                   <div className="duty-badge">
@@ -185,16 +262,169 @@ export default function App() {
                   Loading AI Model...
                 </button>
               ) : (
-                <button className="btn btn-danger" onClick={stopMonitoring}>
-                  <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-                    <rect x="2" y="2" width="14" height="14" rx="2" fill="currentColor" />
-                  </svg>
-                  Stop Monitoring
-                </button>
+                <>
+                  <button
+                    className={`btn ${alertsPaused ? "btn-primary" : "btn-secondary"}`}
+                    onClick={toggleAlertsPaused}
+                    title={
+                      alertsPaused
+                        ? "Resume alerts (Space)"
+                        : "Pause alerts (Space)"
+                    }
+                  >
+                    {alertsPaused ? (
+                      <svg width="16" height="16" viewBox="0 0 18 18" fill="none">
+                        <polygon points="4,2 16,9 4,16" fill="currentColor" />
+                      </svg>
+                    ) : (
+                      <svg width="16" height="16" viewBox="0 0 18 18" fill="none">
+                        <rect x="4" y="2" width="3.5" height="14" rx="1" fill="currentColor" />
+                        <rect x="10.5" y="2" width="3.5" height="14" rx="1" fill="currentColor" />
+                      </svg>
+                    )}
+                    {alertsPaused ? "Resume Alerts" : "Pause Alerts"}
+                    <kbd className="btn-kbd">Space</kbd>
+                  </button>
+                  <button className="btn btn-danger" onClick={stopMonitoring}>
+                    <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+                      <rect x="2" y="2" width="14" height="14" rx="2" fill="currentColor" />
+                    </svg>
+                    Stop Monitoring
+                  </button>
+                </>
               )}
             </div>
 
+            {showActivityBadge && activityInfo && (
+              <div className={`activity-banner activity-${activity}`}>
+                <span className="activity-banner-icon" aria-hidden="true">
+                  {activity === "phone_call" && (
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                      <path
+                        d="M22 16.92v3a2 2 0 0 1-2.18 2 19.86 19.86 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6A19.86 19.86 0 0 1 2.12 4.18 2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.37 1.9.72 2.8a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.9.35 1.84.59 2.8.72A2 2 0 0 1 22 16.92z"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinejoin="round"
+                      />
+                    </svg>
+                  )}
+                  {activity === "writing" && (
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                      <path
+                        d="M12 19l7-7 3 3-7 7-3-3zM18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5zM2 2l7.586 7.586M11 11a2 2 0 1 0 0-4 2 2 0 0 0 0 4z"
+                        stroke="currentColor"
+                        strokeWidth="1.8"
+                        strokeLinejoin="round"
+                      />
+                    </svg>
+                  )}
+                  {activity === "talking_to_someone" && (
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                      <path
+                        d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"
+                        stroke="currentColor"
+                        strokeWidth="1.8"
+                        strokeLinejoin="round"
+                      />
+                    </svg>
+                  )}
+                  {activity === "away" && (
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                      <circle cx="12" cy="8" r="4" stroke="currentColor" strokeWidth="1.8" />
+                      <path
+                        d="M4 21c0-4 4-7 8-7s8 3 8 7"
+                        stroke="currentColor"
+                        strokeWidth="1.8"
+                        strokeLinecap="round"
+                      />
+                      <path d="M2 2l20 20" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+                    </svg>
+                  )}
+                </span>
+                <div className="activity-banner-text">
+                  <strong>{activityInfo.label}</strong>
+                  <span>{activityInfo.desc}</span>
+                </div>
+              </div>
+            )}
+
+            {state === "running" && alertsPaused && (
+              <div className="paused-banner">
+                <span className="paused-dot" />
+                Alerts paused — posture is still being tracked
+              </div>
+            )}
+
             {error && <div className="error-msg">{error}</div>}
+
+            <div className="exercises-card">
+              <div className="exercises-header">
+                <div>
+                  <h3 className="metrics-title">Exercise Break</h3>
+                  <p className="exercises-sub">
+                    Quick desk-friendly exercises to keep you mobile.
+                  </p>
+                </div>
+                <button className="exercise-shuffle" onClick={nextExercise} title="Next exercise">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+                    <path
+                      d="M16 3h5v5M4 20L21 3M21 16v5h-5M15 15l6 6M4 4l5 5"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                  Shuffle
+                </button>
+              </div>
+              <div className="exercise-current">
+                <div className="exercise-current-top">
+                  <span className="exercise-current-title">{currentExercise.title}</span>
+                  <span className="exercise-current-duration">
+                    {exerciseSecondsLeft !== null
+                      ? `${exerciseSecondsLeft}s left`
+                      : `${currentExercise.seconds}s`}
+                  </span>
+                </div>
+                <p className="exercise-current-steps">{currentExercise.steps}</p>
+                {exerciseSecondsLeft !== null && (
+                  <div className="exercise-progress-bar">
+                    <div
+                      className="exercise-progress-fill"
+                      style={{
+                        width: `${
+                          ((currentExercise.seconds - exerciseSecondsLeft) /
+                            currentExercise.seconds) *
+                          100
+                        }%`,
+                      }}
+                    />
+                  </div>
+                )}
+                <button
+                  className={`btn exercise-start ${
+                    exerciseSecondsLeft !== null ? "btn-danger" : "btn-secondary"
+                  }`}
+                  onClick={
+                    exerciseSecondsLeft !== null ? stopExerciseTimer : startExerciseTimer
+                  }
+                >
+                  {exerciseSecondsLeft !== null ? "Stop timer" : "Start timer"}
+                </button>
+              </div>
+              <div className="exercises-grid">
+                {EXERCISES.map((ex, i) => (
+                  <button
+                    key={ex.title}
+                    className={`exercise-chip ${i === exerciseIndex ? "exercise-chip-active" : ""}`}
+                    onClick={() => selectExercise(i)}
+                  >
+                    {ex.title}
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
 
           <div className="status-panel">

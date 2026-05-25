@@ -1,6 +1,12 @@
 import type { NormalizedLandmark } from "@mediapipe/tasks-vision";
 
 export type PostureStatus = "good" | "bad" | "unknown";
+export type ActivityContext =
+  | "working"
+  | "phone_call"
+  | "writing"
+  | "talking_to_someone"
+  | "away";
 
 export interface PostureResult {
   status: PostureStatus;
@@ -11,6 +17,7 @@ export interface PostureResult {
     forwardHead: number;
     eyeLevel: number;
   };
+  activity: ActivityContext;
 }
 
 const NOSE = 0;
@@ -20,6 +27,8 @@ const LEFT_EAR = 7;
 const RIGHT_EAR = 8;
 const LEFT_SHOULDER = 11;
 const RIGHT_SHOULDER = 12;
+const LEFT_WRIST = 15;
+const RIGHT_WRIST = 16;
 
 function angle(a: NormalizedLandmark, b: NormalizedLandmark): number {
   return Math.atan2(b.y - a.y, b.x - a.x) * (180 / Math.PI);
@@ -42,6 +51,82 @@ function visible(lm: NormalizedLandmark | undefined): boolean {
   return !!lm && (lm.visibility === undefined || lm.visibility >= 0.4);
 }
 
+function detectActivity(landmarks: NormalizedLandmark[]): ActivityContext {
+  const nose = landmarks[NOSE];
+  const leftEar = landmarks[LEFT_EAR];
+  const rightEar = landmarks[RIGHT_EAR];
+  const leftShoulder = landmarks[LEFT_SHOULDER];
+  const rightShoulder = landmarks[RIGHT_SHOULDER];
+  const leftWrist = landmarks[LEFT_WRIST];
+  const rightWrist = landmarks[RIGHT_WRIST];
+
+  // Phone call: wrist near either ear
+  if (visible(leftEar) && visible(rightEar)) {
+    const headSize = distance(leftEar, rightEar);
+    if (headSize > 0) {
+      const phoneThreshold = headSize * 1.2;
+      if (visible(leftWrist)) {
+        if (
+          distance(leftWrist, leftEar) < phoneThreshold ||
+          distance(leftWrist, rightEar) < phoneThreshold
+        ) {
+          return "phone_call";
+        }
+      }
+      if (visible(rightWrist)) {
+        if (
+          distance(rightWrist, rightEar) < phoneThreshold ||
+          distance(rightWrist, leftEar) < phoneThreshold
+        ) {
+          return "phone_call";
+        }
+      }
+    }
+  }
+
+  // Talking to someone: head turned significantly sideways
+  // When facing camera, both ears have similar visibility AND nose sits between them horizontally.
+  // When turned sideways, one ear is much more visible than the other and nose drifts toward that side.
+  if (visible(nose) && visible(leftShoulder) && visible(rightShoulder)) {
+    const leftEarVis = leftEar?.visibility ?? 0;
+    const rightEarVis = rightEar?.visibility ?? 0;
+    const earVisDiff = Math.abs(leftEarVis - rightEarVis);
+    const shoulderMid = midpoint(leftShoulder, rightShoulder);
+    const shoulderWidth = distance(leftShoulder, rightShoulder);
+    const noseOffset = Math.abs(nose.x - shoulderMid.x);
+    if (
+      shoulderWidth > 0 &&
+      earVisDiff > 0.35 &&
+      noseOffset > shoulderWidth * 0.3
+    ) {
+      return "talking_to_someone";
+    }
+  }
+
+  // Writing on desk: head significantly below shoulder line (looking way down)
+  if (
+    visible(nose) &&
+    visible(leftShoulder) &&
+    visible(rightShoulder) &&
+    visible(leftEar) &&
+    visible(rightEar)
+  ) {
+    const shoulderMid = midpoint(leftShoulder, rightShoulder);
+    const earMid = midpoint(leftEar, rightEar);
+    const shoulderWidth = distance(leftShoulder, rightShoulder);
+    // ears below or very close to shoulders -> head bent forward strongly
+    if (
+      shoulderWidth > 0 &&
+      earMid.y > shoulderMid.y - shoulderWidth * 0.15 &&
+      nose.y > shoulderMid.y - shoulderWidth * 0.4
+    ) {
+      return "writing";
+    }
+  }
+
+  return "working";
+}
+
 export function analyzePosture(landmarks: NormalizedLandmark[]): PostureResult {
   const issues: string[] = [];
   const emptyScores = { neckTilt: 0, shoulderLevel: 0, forwardHead: 0, eyeLevel: 0 };
@@ -56,8 +141,15 @@ export function analyzePosture(landmarks: NormalizedLandmark[]): PostureResult {
 
   const coreVisible = [nose, leftShoulder, rightShoulder, leftEar, rightEar].every(visible);
   if (!coreVisible) {
-    return { status: "unknown", issues: ["Not fully visible"], scores: emptyScores };
+    return {
+      status: "unknown",
+      issues: ["Not fully visible"],
+      scores: emptyScores,
+      activity: "away",
+    };
   }
+
+  const activity = detectActivity(landmarks);
 
   const shoulderMid = midpoint(leftShoulder, rightShoulder);
   const earMid = midpoint(leftEar, rightEar);
@@ -99,5 +191,6 @@ export function analyzePosture(landmarks: NormalizedLandmark[]): PostureResult {
       forwardHead: Math.round(forwardHeadScore),
       eyeLevel: Math.round(eyeLevelScore),
     },
+    activity,
   };
 }
