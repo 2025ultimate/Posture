@@ -40,7 +40,7 @@ export default function App() {
   const {
     videoRef, canvasRef, state, result, error, badDuration,
     cameraPhase, dutyCycle, alertTone, setAlertTone,
-    alertsPaused, toggleAlertsPaused, isMoving,
+    alertsPaused, toggleAlertsPaused, isMoving, alertCooldownUntil,
     playAlert, speak,
     sessionsVersion, startMonitoring, stopMonitoring,
     startDutyCycle, stopDutyCycle,
@@ -389,6 +389,10 @@ export default function App() {
               </div>
             )}
 
+            {state === "running" && !alertsPaused && !isMoving && alertCooldownUntil > 0 && (
+              <AlertCooldownBanner until={alertCooldownUntil} />
+            )}
+
             {error && <div className="error-msg">{error}</div>}
 
             <div className="exercises-card">
@@ -719,6 +723,26 @@ function NextDueLabel({ nextFireAt }: { nextFireAt: number }) {
     <span className="habit-next">
       Next in {min > 0 ? `${min}m ${sec}s` : `${sec}s`}
     </span>
+  );
+}
+
+function AlertCooldownBanner({ until }: { until: number }) {
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setTick((n) => n + 1), 1000);
+    return () => clearInterval(id);
+  }, []);
+  const remainingMs = Math.max(0, until - Date.now());
+  if (remainingMs <= 0) return null;
+  const totalSec = Math.round(remainingMs / 1000);
+  const min = Math.floor(totalSec / 60);
+  const sec = totalSec % 60;
+  const label = min > 0 ? `${min}m ${sec}s` : `${sec}s`;
+  return (
+    <div className="cooldown-banner">
+      <span className="cooldown-dot" />
+      Quiet mode — next posture alert in {label}
+    </div>
   );
 }
 

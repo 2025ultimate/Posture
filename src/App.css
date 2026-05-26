@@ -1147,6 +1147,30 @@ body {
   box-shadow: 0 0 8px rgba(251, 191, 36, 0.6);
 }
 
+/* Alert cooldown banner */
+.cooldown-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 14px;
+  border-radius: 100px;
+  background: rgba(20, 184, 166, 0.1);
+  border: 1px solid rgba(20, 184, 166, 0.3);
+  color: #5eead4;
+  font-size: 12px;
+  font-weight: 500;
+  justify-content: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.cooldown-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #5eead4;
+  box-shadow: 0 0 8px rgba(94, 234, 212, 0.5);
+}
+
 /* Motion banner */
 .motion-banner {
   display: flex;

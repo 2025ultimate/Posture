@@ -34,9 +34,8 @@ export interface DutyCycleSettings {
   offDuration: number;
 }
 
-const BAD_POSTURE_BEEP_INTERVAL_MS = 5000;
-const VOICE_ANNOUNCE_THRESHOLD_MS = 15000;
-const VOICE_ANNOUNCE_INTERVAL_MS = 20000;
+const BAD_POSTURE_GRACE_MS = 8000;
+const POSTURE_ALERT_COOLDOWN_MS = 12 * 60 * 1000;
 const SMOOTHING_FRAMES = 8;
 // Motion gate: two parallel signals, either one trips it.
 //   - Body motion (nose/ears/shoulders) catches head turns, leaning,
@@ -111,7 +110,7 @@ export function usePostureMonitor() {
   const detectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const lastBeepRef = useRef<number>(0);
-  const lastVoiceRef = useRef<number>(0);
+  const [alertCooldownUntil, setAlertCooldownUntil] = useState<number>(0);
   const resultsBufferRef = useRef<PostureResult[]>([]);
   const audioCtxRef = useRef<AudioContext | null>(null);
   const dutyCycleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -231,14 +230,21 @@ export function usePostureMonitor() {
   }, []);
 
   const fireAlerts = useCallback((elapsed: number, now: number) => {
-    if (now - lastBeepRef.current > BAD_POSTURE_BEEP_INTERVAL_MS) {
-      lastBeepRef.current = now;
-      playAlert();
-    }
-    if (elapsed > VOICE_ANNOUNCE_THRESHOLD_MS && now - lastVoiceRef.current > VOICE_ANNOUNCE_INTERVAL_MS) {
-      lastVoiceRef.current = now;
-      speak("Please correct your posture.");
-    }
+    // Grace window: don't ping for transient bad posture (reaching for
+    // water, glancing at a phone). The user has to be in bad posture
+    // continuously for this long before any alert fires.
+    if (elapsed < BAD_POSTURE_GRACE_MS) return;
+    // Cooldown window: once we've alerted, leave the user alone for a
+    // good while. Repeated pings while they're still off-task are
+    // annoying and counterproductive — the user has acknowledged the
+    // posture issue by hearing the first alert.
+    if (now - lastBeepRef.current < POSTURE_ALERT_COOLDOWN_MS) return;
+
+    lastBeepRef.current = now;
+    setAlertCooldownUntil(now + POSTURE_ALERT_COOLDOWN_MS);
+    playAlert();
+    // Stagger the voice so the chime is heard distinctly first.
+    setTimeout(() => speak("Please correct your posture."), 400);
   }, [playAlert, speak]);
 
   const smoothedResult = useCallback((newResult: PostureResult): PostureResult => {
@@ -561,6 +567,8 @@ export function usePostureMonitor() {
     motionUntilRef.current = 0;
     isMovingRef.current = false;
     setIsMoving(false);
+    lastBeepRef.current = 0;
+    setAlertCooldownUntil(0);
     setBadDuration(0);
     setResult(null);
     setCameraPhase("always");
@@ -639,6 +647,7 @@ export function usePostureMonitor() {
     alertsPaused,
     toggleAlertsPaused,
     isMoving,
+    alertCooldownUntil,
     playAlert,
     speak,
     sessionsVersion,
