@@ -108,7 +108,7 @@ It's the same kind of AI pose detection used by professional fitness and rehab a
 
 ## For developers — local setup
 
-PostureGuard is open source under Apache 2.0. To run it locally:
+PostureGuard is source-available under the PolyForm Noncommercial License 1.0.0 — free for personal, educational, research, and other non-commercial use. To run it locally:
 
 ```bash
 # Requirements: Node.js 18+
@@ -149,19 +149,21 @@ See [BUILDING.md](BUILDING.md) for details and [DEPLOYING.md](DEPLOYING.md) for 
 
 ## License
 
-Licensed under the **Apache License, Version 2.0**. See the [LICENSE](LICENSE) file for the full text.
+Licensed under the **[PolyForm Noncommercial License 1.0.0](https://polyformproject.org/licenses/noncommercial/1.0.0/)**. See the [LICENSE](LICENSE) file for the full text and [NOTICE](NOTICE) for third-party attributions.
 
 ```
-Copyright 2026 Govind Kedia / GoNav Tech
+Copyright 2026 Govind Kedia / GoNav Tech (https://www.gonav.tech)
 
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
+Licensed under the PolyForm Noncommercial License 1.0.0.
 ```
 
-In short: free to use, modify, and distribute — commercially or personally — provided you keep the copyright and license notice.
+In short:
+
+- **Free** for personal use, study, research, hobby projects, education, and use by charitable / public-interest organizations.
+- **Not** free for commercial use — running PostureGuard as part of a paid product, paid service, or any commercial offering requires a separate license.
+- **Modifications are welcome** for any permitted (non-commercial) purpose; you may share your changes under the same terms.
+
+**Commercial licensing inquiries:** [hello@gonav.tech](mailto:hello@gonav.tech)
 
 ## Credits
 
