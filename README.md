@@ -14,6 +14,46 @@ PostureGuard is a real-time posture monitor that runs entirely in your browser. 
 
 It's built for anyone who spends long hours in front of a screen — software developers, designers, students, gamers, writers, traders, remote workers, and anyone who's noticed their neck or back hurting at the end of the day.
 
+## Privacy first — your video never leaves your device
+
+**PostureGuard is built so that you can trust it with your camera.** Here's exactly what happens — and doesn't happen — when you use it:
+
+### What we *don't* do
+
+- **We don't see your video.** Your webcam stream is processed entirely inside your own browser. It is not uploaded, streamed, or recorded anywhere.
+- **We don't have a server.** PostureGuard is a static web page. There is no backend that could receive your data even if it tried.
+- **No accounts, no signups, no cookies, no tracking pixels.** You don't tell us who you are; we have no way to know.
+- **No analytics.** There is no Google Analytics, no Mixpanel, no telemetry, no "anonymous usage data" being sent. None.
+- **We don't sell or share data.** There is nothing to sell.
+- **No third-party scripts** at runtime — no ads, no chat widgets, no fingerprinting libraries.
+
+### How it actually works (the technical bit)
+
+PostureGuard uses [Google MediaPipe](https://developers.google.com/mediapipe) — the same on-device computer-vision toolkit that ships inside Android and Chrome — compiled to WebAssembly and run by your browser. When you click *Start Monitoring*:
+
+1. Your browser downloads two static files: the MediaPipe runtime (a small WebAssembly binary) and the pose-detection model (a ~6 MB `.task` file). Both come from Google's public MediaPipe CDN. They are publicly-available, signed assets, the same ones Google ships to millions of other MediaPipe applications.
+2. Your browser asks for camera permission and starts a local video stream using the standard `getUserMedia` Web API.
+3. Each frame is fed *only* into the local MediaPipe model running inside your browser tab. The model returns coordinates (where your shoulders, ears, eyes, nose, and wrists are). Those coordinates are analyzed by the JavaScript you already loaded — still inside your browser tab.
+4. **No frame, no coordinate, no result is ever transmitted out of your device.** After the initial model load, the app makes zero outbound network requests.
+
+You can verify this yourself: open your browser's DevTools, switch to the Network tab, click *Start Monitoring*, and watch. You'll see two requests at startup (the runtime and model), and then complete silence — even if you sit there for hours.
+
+### Your settings stay on your device
+
+Your alert-tone choice, habit reminder schedule, theme, and session history are stored in your browser's `localStorage` — a per-site storage area that lives only on your computer. Clearing your browser data wipes all of it. None of it leaves your device.
+
+### Want it fully offline?
+
+Build the [Electron desktop app](BUILDING.md) — it bundles the MediaPipe model locally, so after install it works with Wi-Fi off, on a plane, or air-gapped. Pull the network cable and it keeps running.
+
+### The source is public — read it for yourself
+
+The complete source code for this repository is the running app. There is no "minified" mystery layer — what you see here is what the demo executes. If you don't trust our word, trust the code:
+
+- Looking for network calls? `grep -r "fetch\|XMLHttpRequest\|WebSocket" src/` — you'll find none.
+- Want to see the model URLs? They're in [`src/usePostureMonitor.ts`](src/usePostureMonitor.ts) — the only two external URLs in the whole app.
+- Want to know what we store? Search for `localStorage` in `src/` — every key is prefixed `postureguard.`.
+
 ## Try it now
 
 Open the demo in any modern browser (Chrome, Edge, Firefox, or Safari) and click Start Monitoring:
@@ -73,8 +113,10 @@ Eight desk-friendly exercises with timed countdowns — neck rolls, shoulder shr
 ### Privacy first
 
 - 100% on-device processing — your video never leaves your computer
-- No tracking, no accounts, no server
+- No tracking, no accounts, no server, no analytics
 - Works offline as a desktop app (macOS, Windows, Linux via Electron)
+
+See [Privacy first — your video never leaves your device](#privacy-first--your-video-never-leaves-your-device) above for the full technical details.
 
 ## Who is this for?
 
