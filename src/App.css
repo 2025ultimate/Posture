@@ -846,6 +846,47 @@ body {
   border-color: var(--blue);
 }
 
+.habit-row-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.habit-mode {
+  display: inline-flex;
+  border: 1px solid var(--border);
+  border-radius: 100px;
+  padding: 2px;
+  background: var(--bg-card-2);
+}
+
+.habit-mode-btn {
+  font-family: inherit;
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  font-size: 10px;
+  font-weight: 600;
+  padding: 3px 9px;
+  border-radius: 100px;
+  cursor: pointer;
+  letter-spacing: 0.3px;
+  transition: color 0.15s, background 0.15s;
+}
+
+.habit-mode-btn:hover {
+  color: var(--text);
+}
+
+.habit-mode-btn-active {
+  background: var(--blue);
+  color: #fff;
+}
+
+.habit-mode-btn-active:hover {
+  color: #fff;
+}
+
 /* Insights card */
 .insights-card {
   background: var(--bg-card);

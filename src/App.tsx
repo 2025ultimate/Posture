@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { usePostureMonitor, ALERT_TONE_LABELS } from "./usePostureMonitor";
 import type { AlertTone } from "./usePostureMonitor";
 import { useHabitReminders, HABIT_INFO } from "./useHabitReminders";
-import type { HabitKey } from "./useHabitReminders";
+import type { HabitKey, HabitMode } from "./useHabitReminders";
 import { loadHistory, computeInsights, clearHistory } from "./sessionHistory";
 import type { Insights } from "./sessionHistory";
 import { usePersistedState } from "./usePersistedState";
@@ -46,7 +46,7 @@ export default function App() {
     startDutyCycle, stopDutyCycle,
   } = usePostureMonitor();
 
-  const { habits, setEnabled, setHabitInterval, snooze } = useHabitReminders(
+  const { habits, setEnabled, setHabitInterval, snooze, setHabitMode } = useHabitReminders(
     playAlert,
     speak,
     state === "running" && !alertsPaused
@@ -597,6 +597,7 @@ export default function App() {
               setEnabled={setEnabled}
               setHabitInterval={setHabitInterval}
               snooze={snooze}
+              setHabitMode={setHabitMode}
             />
 
             {insights.totalSessions > 0 && (
@@ -653,9 +654,10 @@ interface HabitsCardProps {
   setEnabled: (key: HabitKey, enabled: boolean) => void;
   setHabitInterval: (key: HabitKey, intervalMin: number) => void;
   snooze: (key: HabitKey) => void;
+  setHabitMode: (key: HabitKey, mode: HabitMode) => void;
 }
 
-function HabitsCard({ habits, setEnabled, setHabitInterval, snooze }: HabitsCardProps) {
+function HabitsCard({ habits, setEnabled, setHabitInterval, snooze, setHabitMode }: HabitsCardProps) {
   const keys = Object.keys(HABIT_INFO) as HabitKey[];
   return (
     <div className="habits-card">
@@ -696,9 +698,33 @@ function HabitsCard({ habits, setEnabled, setHabitInterval, snooze }: HabitsCard
               {h.enabled && h.nextFireAt !== null && (
                 <div className="habit-row-bottom">
                   <NextDueLabel nextFireAt={h.nextFireAt} />
-                  <button className="habit-snooze" onClick={() => snooze(key)}>
-                    Reset
-                  </button>
+                  <div className="habit-row-actions">
+                    <div
+                      className="habit-mode"
+                      role="group"
+                      aria-label={`${info.title} reminder style`}
+                    >
+                      <button
+                        type="button"
+                        className={`habit-mode-btn ${(h.mode ?? "ping") === "ping" ? "habit-mode-btn-active" : ""}`}
+                        onClick={() => setHabitMode(key, "ping")}
+                        title="Short ping only"
+                      >
+                        Ping
+                      </button>
+                      <button
+                        type="button"
+                        className={`habit-mode-btn ${h.mode === "voice" ? "habit-mode-btn-active" : ""}`}
+                        onClick={() => setHabitMode(key, "voice")}
+                        title="Spoken announcement"
+                      >
+                        Voice
+                      </button>
+                    </div>
+                    <button className="habit-snooze" onClick={() => snooze(key)}>
+                      Reset
+                    </button>
+                  </div>
                 </div>
               )}
             </div>

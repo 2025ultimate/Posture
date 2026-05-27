@@ -1,0 +1,34 @@
+PostureGuard
+Copyright 2026 Govind Kedia / GoNav Tech (https://www.gonav.tech)
+
+This software is licensed under the PolyForm Noncommercial License 1.0.0.
+See the LICENSE file for the full text. For commercial use, contact
+contact@analystology.com.
+
+----------------------------------------------------------------------
+
+Third-party notices
+
+This product bundles or depends on the following third-party software,
+each under its own license:
+
+* MediaPipe Tasks Vision (@mediapipe/tasks-vision)
+  Copyright 2019 The MediaPipe Authors
+  Licensed under the Apache License, Version 2.0
+  https://github.com/google-ai-edge/mediapipe/blob/master/LICENSE
+
+* React, React DOM
+  Copyright (c) Meta Platforms, Inc. and affiliates.
+  Licensed under the MIT License
+  https://github.com/facebook/react/blob/main/LICENSE
+
+* Vite
+  Copyright (c) 2019-present, Yuxi (Evan) You and Vite contributors
+  Licensed under the MIT License
+  https://github.com/vitejs/vite/blob/main/LICENSE
+
+* Electron
+  Copyright (c) Electron contributors
+  Copyright (c) 2013-2020 GitHub Inc.
+  Licensed under the MIT License
+  https://github.com/electron/electron/blob/main/LICENSE
