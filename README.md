@@ -205,7 +205,7 @@ In short:
 - **Not** free for commercial use — running PostureGuard as part of a paid product, paid service, or any commercial offering requires a separate license.
 - **Modifications are welcome** for any permitted (non-commercial) purpose; you may share your changes under the same terms.
 
-**Commercial licensing inquiries:** [hello@gonav.tech](mailto:hello@gonav.tech)
+**Commercial licensing inquiries:** [contact@analystology.com](mailto:contact@analystology.com)
 
 ## Credits
 
