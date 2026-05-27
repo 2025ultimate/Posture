@@ -2,11 +2,13 @@ import { useEffect, useRef } from "react";
 import { usePersistedState } from "./usePersistedState";
 
 export type HabitKey = "water" | "stretch" | "eyes";
+export type HabitMode = "ping" | "voice";
 
 export interface HabitSetting {
   enabled: boolean;
   intervalMin: number;
   nextFireAt: number | null;
+  mode: HabitMode;
 }
 
 export const HABIT_INFO: Record<
@@ -34,9 +36,9 @@ export const HABIT_INFO: Record<
 };
 
 const DEFAULTS: Record<HabitKey, HabitSetting> = {
-  water: { enabled: false, intervalMin: HABIT_INFO.water.defaultMin, nextFireAt: null },
-  stretch: { enabled: false, intervalMin: HABIT_INFO.stretch.defaultMin, nextFireAt: null },
-  eyes: { enabled: false, intervalMin: HABIT_INFO.eyes.defaultMin, nextFireAt: null },
+  water: { enabled: false, intervalMin: HABIT_INFO.water.defaultMin, nextFireAt: null, mode: "ping" },
+  stretch: { enabled: false, intervalMin: HABIT_INFO.stretch.defaultMin, nextFireAt: null, mode: "ping" },
+  eyes: { enabled: false, intervalMin: HABIT_INFO.eyes.defaultMin, nextFireAt: null, mode: "ping" },
 };
 
 const TICK_INTERVAL_MS = 30 * 1000;
@@ -97,10 +99,16 @@ export function useHabitReminders(
       if (due.length === 0) return;
 
       // Fire each reminder, staggered so the audio doesn't pile up.
+      // Voice line is only spoken when the user explicitly opted in
+      // via mode === "voice"; everyone else gets a short ping +
+      // notification only.
       due.forEach((k, i) => {
+        const habit = habitsRef.current[k];
         setTimeout(() => {
           playAlertRef.current();
-          setTimeout(() => speakRef.current(HABIT_INFO[k].voice), 400);
+          if (habit?.mode === "voice") {
+            setTimeout(() => speakRef.current(HABIT_INFO[k].voice), 400);
+          }
           showNotification(HABIT_INFO[k].voice);
         }, i * 2500);
       });
@@ -150,5 +158,12 @@ export function useHabitReminders(
     }));
   };
 
-  return { habits, setEnabled, setHabitInterval, snooze };
+  const setHabitMode = (key: HabitKey, mode: HabitMode) => {
+    setHabits((prev) => ({
+      ...prev,
+      [key]: { ...prev[key], mode },
+    }));
+  };
+
+  return { habits, setEnabled, setHabitInterval, snooze, setHabitMode };
 }

@@ -243,9 +243,7 @@ export function usePostureMonitor() {
     lastBeepRef.current = now;
     setAlertCooldownUntil(now + POSTURE_ALERT_COOLDOWN_MS);
     playAlert();
-    // Stagger the voice so the chime is heard distinctly first.
-    setTimeout(() => speak("Please correct your posture."), 400);
-  }, [playAlert, speak]);
+  }, [playAlert]);
 
   const smoothedResult = useCallback((newResult: PostureResult): PostureResult => {
     const buf = resultsBufferRef.current;
