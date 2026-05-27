@@ -1,0 +1,9 @@
+PostureGuard
+Copyright 2026 Govind Kedia / GoNav Tech
+
+This product includes software developed by Govind Kedia and GoNav Tech
+(https://www.gonav.tech).
+
+Pose landmark detection is provided by Google MediaPipe
+(https://developers.google.com/mediapipe), licensed under the
+Apache License 2.0.
