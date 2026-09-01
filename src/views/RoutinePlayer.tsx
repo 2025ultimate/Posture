@@ -1,7 +1,7 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ProgramLevel, RoutineStep } from "../apt/program";
 import { buildSteps, STEP_PREP_SECONDS } from "../apt/program";
-import { CATEGORY_LABELS, schemeLabel } from "../apt/exercises";
+import { CATEGORY_LABELS, exerciseVideoQuery, schemeLabel } from "../apt/exercises";
 import {
   completeLine,
   finalPushLine,
@@ -10,6 +10,7 @@ import {
   startLine,
 } from "../apt/motivation";
 import type { AudioCues } from "../useAudioCues";
+import { DemoLink } from "./DemoLink";
 import { ExerciseFigure } from "./ExerciseFigure";
 import { IconPause, IconPlay } from "./Icons";
 
@@ -315,6 +316,8 @@ function RoutinePlayerInner({
             <li className="player-mistake">Avoid: {step.exercise.mistake}</li>
           )}
         </ul>
+
+        <DemoLink query={exerciseVideoQuery(step.exercise)} />
 
         {next ? (
           <p className="player-next">

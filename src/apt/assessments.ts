@@ -44,12 +44,15 @@ export interface SelfTestDef {
   question: string;
   perSide: boolean;
   options: SelfTestOption[];
+  /** YouTube search query for a demonstration of the test. */
+  videoQuery: string;
 }
 
 export const SELF_TESTS: SelfTestDef[] = [
   {
     id: "wall",
     name: "Wall test — lumbar gap",
+    videoQuery: "wall test posture lumbar gap assessment",
     what: "How much your lower back arches when you stand naturally.",
     steps: [
       "Stand with your back against a wall: heels one hand-width out, bottom, upper back and head touching the wall.",
@@ -91,6 +94,7 @@ export const SELF_TESTS: SelfTestDef[] = [
   {
     id: "thomas",
     name: "Thomas test — hip flexor length",
+    videoQuery: "thomas test hip flexor tightness how to",
     what: "Whether your hip flexors have shortened from sitting.",
     steps: [
       "Sit on the very edge of a bed or sturdy table.",

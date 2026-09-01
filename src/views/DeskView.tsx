@@ -8,8 +8,9 @@ import type { HabitKey, HabitMode } from "../useHabitReminders";
 import type { AudioCues } from "../useAudioCues";
 import { ALERT_TONE_LABELS } from "../useAudioCues";
 import type { AlertTone } from "../useAudioCues";
-import { EXERCISES, MICRO_BREAK_IDS, setSeconds } from "../apt/exercises";
+import { EXERCISES, exerciseVideoQuery, MICRO_BREAK_IDS, setSeconds } from "../apt/exercises";
 import { breakPraiseLine } from "../apt/motivation";
+import { DemoLink } from "./DemoLink";
 import { ExerciseFigure } from "./ExerciseFigure";
 
 // The desk companion. Honest scope for APT: a front-facing webcam can't
@@ -575,12 +576,15 @@ function MicroBreakCard({
         </div>
         <div className="micro-body">
           <ExerciseFigure id={id} size={130} />
-          <ul className="exercise-cues">
-            {exercise.cues.map((c, i) => (
-              <li key={i}>{c}</li>
-            ))}
-            {perSide && <li>Switch sides at the halfway tick.</li>}
-          </ul>
+          <div className="micro-body-text">
+            <ul className="exercise-cues">
+              {exercise.cues.map((c, i) => (
+                <li key={i}>{c}</li>
+              ))}
+              {perSide && <li>Switch sides at the halfway tick.</li>}
+            </ul>
+            <DemoLink query={exerciseVideoQuery(exercise)} />
+          </div>
         </div>
         {secondsLeft !== null && (
           <div className="exercise-progress-bar">

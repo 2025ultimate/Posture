@@ -12,6 +12,7 @@ import {
   SELF_TESTS,
 } from "../apt/assessments";
 import type { SelfTestDef } from "../apt/assessments";
+import { DemoLink } from "./DemoLink";
 import { ExerciseFigure } from "./ExerciseFigure";
 import { IconFlip } from "./Icons";
 
@@ -347,11 +348,14 @@ function SelfTestCard({
         <div className="selftest-body">
           <div className="selftest-guide">
             <ExerciseFigure id={def.id} label={def.name} size={165} />
-            <ol className="check-steps">
-              {def.steps.map((s, i) => (
-                <li key={i}>{s}</li>
-              ))}
-            </ol>
+            <div>
+              <ol className="check-steps">
+                {def.steps.map((s, i) => (
+                  <li key={i}>{s}</li>
+                ))}
+              </ol>
+              <DemoLink query={def.videoQuery} />
+            </div>
           </div>
           <p className="selftest-question">{def.question}</p>
           {def.perSide ? (

@@ -33,6 +33,22 @@ export interface Exercise {
   cues: string[];
   mistake?: string;
   scheme: Scheme;
+  /**
+   * YouTube search query for a real-person demo. Defaults to the exercise
+   * name; null disables the link (e.g. walking needs no demo). We link to
+   * a search rather than embedding or hardcoding a video: no third-party
+   * scripts in the app, no dead links, and results stay current.
+   */
+  videoQuery?: string | null;
+}
+
+export function exerciseVideoQuery(ex: Exercise): string | null {
+  if (ex.videoQuery === null) return null;
+  return ex.videoQuery ?? `${ex.name} exercise form`;
+}
+
+export function youtubeSearchUrl(query: string): string {
+  return `https://www.youtube.com/results?search_query=${encodeURIComponent(query)}`;
 }
 
 export const CATEGORY_LABELS: Record<ExerciseCategory, string> = {
@@ -64,6 +80,7 @@ export const EXERCISES: Record<string, Exercise> = Object.fromEntries(
     // ---- Control / awareness -------------------------------------------
     EX({
       id: "breathing9090",
+      videoQuery: "90 90 breathing exercise",
       name: "90/90 breathing",
       category: "control",
       targets: "Deep core · rib position",
@@ -78,6 +95,7 @@ export const EXERCISES: Record<string, Exercise> = Object.fromEntries(
     }),
     EX({
       id: "pelvicTiltSupine",
+      videoQuery: "posterior pelvic tilt exercise lying down",
       name: "Pelvic tilt (lying)",
       category: "control",
       targets: "Pelvis awareness · lower abs",
@@ -92,6 +110,7 @@ export const EXERCISES: Record<string, Exercise> = Object.fromEntries(
     }),
     EX({
       id: "wallTilt",
+      videoQuery: "standing posterior pelvic tilt against wall",
       name: "Standing wall tilt",
       category: "control",
       targets: "Neutral pelvis while standing",
@@ -106,6 +125,7 @@ export const EXERCISES: Record<string, Exercise> = Object.fromEntries(
     }),
     EX({
       id: "gluteSqueeze",
+      videoQuery: "standing glute squeeze posture exercise",
       name: "Standing glute squeeze",
       category: "control",
       targets: "Glute activation · pelvis position",
@@ -147,6 +167,7 @@ export const EXERCISES: Record<string, Exercise> = Object.fromEntries(
     }),
     EX({
       id: "hipThrust",
+      videoQuery: "hip thrust shoulders on bench form",
       name: "Hip thrust (shoulders elevated)",
       category: "strength",
       targets: "Glutes",
@@ -187,6 +208,7 @@ export const EXERCISES: Record<string, Exercise> = Object.fromEntries(
     }),
     EX({
       id: "rkcPlank",
+      videoQuery: "RKC hard style plank form",
       name: "Hard-style plank",
       category: "strength",
       targets: "Abs · glutes together",
@@ -213,6 +235,7 @@ export const EXERCISES: Record<string, Exercise> = Object.fromEntries(
     }),
     EX({
       id: "hamWalkout",
+      videoQuery: "hamstring walkouts glute bridge",
       name: "Hamstring walkouts",
       category: "strength",
       targets: "Hamstrings · glutes",
@@ -227,6 +250,7 @@ export const EXERCISES: Record<string, Exercise> = Object.fromEntries(
     // ---- Stretch --------------------------------------------------------
     EX({
       id: "hipFlexorStretch",
+      videoQuery: "half kneeling hip flexor stretch pelvic tuck",
       name: "Half-kneeling hip flexor stretch",
       category: "stretch",
       targets: "Hip flexors (psoas)",
@@ -242,6 +266,7 @@ export const EXERCISES: Record<string, Exercise> = Object.fromEntries(
     }),
     EX({
       id: "couchStretch",
+      videoQuery: "couch stretch hip flexor",
       name: "Couch stretch",
       category: "stretch",
       targets: "Rectus femoris · hip flexors",
@@ -291,6 +316,7 @@ export const EXERCISES: Record<string, Exercise> = Object.fromEntries(
     // ---- Desk micro-breaks ---------------------------------------------
     EX({
       id: "microStand",
+      videoQuery: "standing posture reset glute squeeze",
       name: "Stand + glute reset",
       category: "micro",
       targets: "Undo the sitting position",
@@ -303,6 +329,7 @@ export const EXERCISES: Record<string, Exercise> = Object.fromEntries(
     }),
     EX({
       id: "microHipFlexor",
+      videoQuery: "standing hip flexor stretch",
       name: "Standing hip flexor opener",
       category: "micro",
       targets: "Hip flexors after sitting",
@@ -315,6 +342,7 @@ export const EXERCISES: Record<string, Exercise> = Object.fromEntries(
     }),
     EX({
       id: "microWallTilt",
+      videoQuery: "standing posterior pelvic tilt against wall",
       name: "Wall tilts ×8",
       category: "micro",
       targets: "Neutral pelvis reset",
@@ -326,6 +354,7 @@ export const EXERCISES: Record<string, Exercise> = Object.fromEntries(
     }),
     EX({
       id: "microWalk",
+      videoQuery: null,
       name: "Two-minute walk",
       category: "micro",
       targets: "Hip extension · circulation",
@@ -337,6 +366,7 @@ export const EXERCISES: Record<string, Exercise> = Object.fromEntries(
     }),
     EX({
       id: "microChest",
+      videoQuery: "doorway chest stretch",
       name: "Doorway chest stretch",
       category: "micro",
       targets: "Chest · shoulders",
@@ -348,6 +378,7 @@ export const EXERCISES: Record<string, Exercise> = Object.fromEntries(
     }),
     EX({
       id: "microChinTuck",
+      videoQuery: "chin tuck exercise",
       name: "Chin tucks",
       category: "micro",
       targets: "Neck · head position",

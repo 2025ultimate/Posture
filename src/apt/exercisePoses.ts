@@ -16,6 +16,19 @@ export interface Pt {
   y: number;
 }
 
+/**
+ * Animation keyframe: the START position of the movement. The base pose is
+ * the ACTIVE position (top of the bridge, tucked pelvis, extended dead-bug
+ * limb), and the figure loops start → active (hold) → start with an ease.
+ * `chains` is sparse — only the chain indices that move, and each entry
+ * must have the same number of points as the base chain.
+ */
+export interface PoseAnim {
+  chains?: Record<number, Pt[]>;
+  head?: { x: number; y: number };
+  durMs?: number;
+}
+
 export interface Pose {
   /** Filled prop blocks (chair, bench, table). */
   rects?: { x: number; y: number; w: number; h: number }[];
@@ -32,6 +45,9 @@ export interface Pose {
   glow?: { x: number; y: number; r: number; kind: "stretch" | "strength" };
   /** Motion arrows: 2 points = straight, 3 points = curved (quadratic). */
   arrows?: Pt[][];
+  anim?: PoseAnim;
+  /** Isometric holds: no position change, just pulse the glow. */
+  pulse?: boolean;
 }
 
 const STRETCH_COLOR = "#a855f7";
@@ -52,6 +68,8 @@ export const POSES: Record<string, Pose> = {
     ],
     glow: { x: 42, y: 74, r: 6, kind: "strength" },
     arrows: [[{ x: 36, y: 60 }, { x: 36, y: 72 }]],
+    // Slow breath: the hand on the belly rises and settles.
+    anim: { chains: { 1: [{ x: 32, y: 80 }, { x: 42, y: 76 }] }, durMs: 3400 },
   },
   pelvicTiltSupine: {
     ground: true,
@@ -65,6 +83,14 @@ export const POSES: Record<string, Pose> = {
     ],
     glow: { x: 44, y: 78, r: 6, kind: "strength" },
     arrows: [[{ x: 56, y: 68 }, { x: 50, y: 62 }, { x: 43, y: 66 }]],
+    // Arched start → low back pressed flat into the floor.
+    anim: {
+      chains: {
+        0: [{ x: 24, y: 81 }, { x: 50, y: 77 }],
+        1: [{ x: 32, y: 80 }, { x: 48, y: 71 }],
+        2: [{ x: 50, y: 77 }, { x: 62, y: 60 }],
+      },
+    },
   },
   wallTilt: {
     ground: true,
@@ -78,6 +104,13 @@ export const POSES: Record<string, Pose> = {
     ],
     glow: { x: 77, y: 44, r: 5, kind: "strength" },
     arrows: [[{ x: 62, y: 44 }, { x: 73, y: 44 }]],
+    // Arched-off-the-wall start → lumbar pressed toward the wall.
+    anim: {
+      chains: {
+        0: [{ x: 76, y: 25 }, { x: 70, y: 38 }, { x: 76, y: 52 }],
+        1: [{ x: 75, y: 30 }, { x: 69, y: 46 }],
+      },
+    },
   },
   gluteSqueeze: {
     ground: true,
@@ -90,6 +123,14 @@ export const POSES: Record<string, Pose> = {
     ],
     glow: { x: 52, y: 54, r: 6, kind: "strength" },
     arrows: [[{ x: 47, y: 62 }, { x: 44, y: 55 }, { x: 48, y: 49 }]],
+    // Relaxed stance → pelvis tucks slightly under on the squeeze.
+    anim: {
+      chains: {
+        0: [{ x: 58, y: 24 }, { x: 56, y: 52 }],
+        2: [{ x: 56, y: 52 }, { x: 56, y: 70 }, { x: 57, y: 88 }],
+        3: [{ x: 56, y: 52 }, { x: 61, y: 70 }, { x: 60, y: 88 }],
+      },
+    },
   },
 
   // ---- Strength ---------------------------------------------------------
@@ -103,6 +144,8 @@ export const POSES: Record<string, Pose> = {
     ],
     glow: { x: 46, y: 71, r: 6.5, kind: "strength" },
     arrows: [[{ x: 48, y: 58 }, { x: 48, y: 44 }]],
+    // Hips on the floor → driven up to the straight-line top.
+    anim: { chains: { 0: [{ x: 22, y: 82 }, { x: 46, y: 79 }, { x: 58, y: 62 }] } },
   },
   singleLegBridge: {
     ground: true,
@@ -115,6 +158,13 @@ export const POSES: Record<string, Pose> = {
     ],
     glow: { x: 46, y: 71, r: 6.5, kind: "strength" },
     arrows: [[{ x: 48, y: 58 }, { x: 48, y: 44 }]],
+    // Hips down → up, the free leg riding level with the pelvis.
+    anim: {
+      chains: {
+        0: [{ x: 22, y: 82 }, { x: 46, y: 79 }, { x: 58, y: 62 }],
+        2: [{ x: 46, y: 79 }, { x: 76, y: 70 }],
+      },
+    },
   },
   hipThrust: {
     ground: true,
@@ -128,6 +178,13 @@ export const POSES: Record<string, Pose> = {
     ],
     glow: { x: 48, y: 68, r: 6.5, kind: "strength" },
     arrows: [[{ x: 50, y: 54 }, { x: 50, y: 40 }]],
+    // Hips dipped → driven to the straight line.
+    anim: {
+      chains: {
+        0: [{ x: 18, y: 60 }, { x: 48, y: 72 }],
+        2: [{ x: 48, y: 72 }, { x: 64, y: 62 }],
+      },
+    },
   },
   deadBug: {
     ground: true,
@@ -141,6 +198,11 @@ export const POSES: Record<string, Pose> = {
     ],
     glow: { x: 44, y: 80, r: 6, kind: "strength" },
     arrows: [[{ x: 44, y: 68 }, { x: 44, y: 76 }]],
+    // The free leg reaches from raised to long-and-low, back stays glued.
+    anim: {
+      chains: { 4: [{ x: 52, y: 82 }, { x: 60, y: 63 }] },
+      durMs: 3000,
+    },
   },
   reverseCrunch: {
     ground: true,
@@ -153,6 +215,13 @@ export const POSES: Record<string, Pose> = {
     ],
     glow: { x: 42, y: 74, r: 5.5, kind: "strength" },
     arrows: [[{ x: 62, y: 70 }, { x: 56, y: 54 }, { x: 44, y: 46 }]],
+    // Knees curl from neutral toward the chest.
+    anim: {
+      chains: {
+        2: [{ x: 46, y: 80 }, { x: 48, y: 62 }],
+        3: [{ x: 48, y: 62 }, { x: 62, y: 60 }],
+      },
+    },
   },
   rkcPlank: {
     ground: true,
@@ -165,6 +234,7 @@ export const POSES: Record<string, Pose> = {
     ],
     glow: { x: 54, y: 74, r: 7, kind: "strength" },
     arrows: [[{ x: 60, y: 62 }, { x: 66, y: 68 }, { x: 61, y: 74 }]],
+    pulse: true,
   },
   hollowHold: {
     ground: true,
@@ -180,6 +250,7 @@ export const POSES: Record<string, Pose> = {
       [{ x: 26, y: 73 }, { x: 8, y: 62 }],
     ],
     glow: { x: 46, y: 82, r: 5.5, kind: "strength" },
+    pulse: true,
   },
   hamWalkout: {
     ground: true,
@@ -192,6 +263,14 @@ export const POSES: Record<string, Pose> = {
     dashed: [[{ x: 64, y: 86 }, { x: 82, y: 88 }]],
     glow: { x: 52, y: 74, r: 6, kind: "strength" },
     arrows: [[{ x: 68, y: 76 }, { x: 84, y: 78 }]],
+    // Feet walk out and back while the hips stay up.
+    anim: {
+      chains: {
+        0: [{ x: 22, y: 82 }, { x: 45, y: 72 }, { x: 58, y: 71 }],
+        1: [{ x: 58, y: 71 }, { x: 80, y: 87 }],
+      },
+      durMs: 3000,
+    },
   },
 
   // ---- Stretch ----------------------------------------------------------
@@ -208,6 +287,17 @@ export const POSES: Record<string, Pose> = {
     ],
     glow: { x: 56, y: 62, r: 6, kind: "stretch" },
     arrows: [[{ x: 44, y: 68 }, { x: 41, y: 60 }, { x: 45, y: 54 }]],
+    // The "shift forward an inch" — hips glide forward, torso stays tall.
+    anim: {
+      chains: {
+        1: [{ x: 44, y: 86 }, { x: 49, y: 64 }],
+        2: [{ x: 49, y: 64 }, { x: 47, y: 32 }],
+        3: [{ x: 48, y: 36 }, { x: 54, y: 14 }],
+        4: [{ x: 49, y: 64 }, { x: 68, y: 66 }],
+      },
+      head: { x: 47, y: 25 },
+      durMs: 3000,
+    },
   },
   couchStretch: {
     ground: true,
@@ -222,6 +312,15 @@ export const POSES: Record<string, Pose> = {
       [{ x: 46, y: 68 }, { x: 46, y: 88 }],
     ],
     glow: { x: 74, y: 74, r: 7, kind: "stretch" },
+    // Torso rises from flexed to tall — only as far as the tuck holds.
+    anim: {
+      chains: {
+        2: [{ x: 66, y: 66 }, { x: 52, y: 42 }],
+        3: [{ x: 56, y: 48 }, { x: 46, y: 62 }],
+      },
+      head: { x: 51, y: 35 },
+      durMs: 3000,
+    },
   },
   quadStretch: {
     ground: true,
@@ -236,6 +335,7 @@ export const POSES: Record<string, Pose> = {
       [{ x: 43, y: 30 }, { x: 53, y: 57 }],
     ],
     glow: { x: 48, y: 61, r: 5.5, kind: "stretch" },
+    pulse: true,
   },
   childsPose: {
     ground: true,
@@ -247,6 +347,11 @@ export const POSES: Record<string, Pose> = {
       [{ x: 48, y: 80 }, { x: 76, y: 87 }],
     ],
     glow: { x: 32, y: 70, r: 6.5, kind: "stretch" },
+    // Gentle breathing reach — hands walk a little further each exhale.
+    anim: {
+      chains: { 3: [{ x: 48, y: 80 }, { x: 70, y: 86 }] },
+      durMs: 3200,
+    },
   },
   kneesToChest: {
     ground: true,
@@ -258,6 +363,15 @@ export const POSES: Record<string, Pose> = {
       [{ x: 28, y: 78 }, { x: 36, y: 63 }],
     ],
     glow: { x: 40, y: 77, r: 5.5, kind: "stretch" },
+    // Gentle rock: knees hug closer, then ease off.
+    anim: {
+      chains: {
+        1: [{ x: 42, y: 79 }, { x: 42, y: 64 }],
+        2: [{ x: 42, y: 64 }, { x: 30, y: 64 }],
+        3: [{ x: 28, y: 78 }, { x: 38, y: 66 }],
+      },
+      durMs: 2800,
+    },
   },
 
   // ---- Desk micro-breaks -------------------------------------------------
@@ -274,6 +388,16 @@ export const POSES: Record<string, Pose> = {
     ],
     glow: { x: 49, y: 55, r: 6, kind: "stretch" },
     arrows: [[{ x: 43, y: 60 }, { x: 40, y: 53 }, { x: 44, y: 47 }]],
+    // Whole upper body glides forward over planted feet.
+    anim: {
+      chains: {
+        0: [{ x: 51, y: 23 }, { x: 49, y: 50 }],
+        1: [{ x: 50, y: 30 }, { x: 47, y: 46 }],
+        2: [{ x: 49, y: 50 }, { x: 62, y: 64 }],
+        4: [{ x: 49, y: 50 }, { x: 38, y: 68 }],
+      },
+      head: { x: 51, y: 16 },
+    },
   },
   microWalk: {
     ground: true,
@@ -286,6 +410,16 @@ export const POSES: Record<string, Pose> = {
       [{ x: 55, y: 50 }, { x: 46, y: 68 }, { x: 38, y: 86 }],
     ],
     arrows: [[{ x: 78, y: 40 }, { x: 94, y: 40 }]],
+    // Two-frame march: legs and arms swap.
+    anim: {
+      chains: {
+        1: [{ x: 55, y: 29 }, { x: 47, y: 42 }],
+        2: [{ x: 55, y: 29 }, { x: 63, y: 42 }],
+        3: [{ x: 55, y: 50 }, { x: 46, y: 68 }, { x: 38, y: 86 }],
+        4: [{ x: 55, y: 50 }, { x: 66, y: 66 }, { x: 70, y: 88 }],
+      },
+      durMs: 1500,
+    },
   },
   microChest: {
     ground: true,
@@ -302,17 +436,35 @@ export const POSES: Record<string, Pose> = {
       [{ x: 60, y: 50 }, { x: 54, y: 68 }, { x: 52, y: 88 }],
     ],
     glow: { x: 60, y: 30, r: 6, kind: "stretch" },
+    // Chest presses gently forward through the frame.
+    anim: {
+      chains: {
+        0: [{ x: 57, y: 23 }, { x: 58, y: 50 }],
+        1: [{ x: 57, y: 28 }, { x: 48, y: 24 }, { x: 46, y: 12 }],
+        2: [{ x: 57, y: 28 }, { x: 72, y: 24 }, { x: 74, y: 12 }],
+      },
+      head: { x: 57, y: 16 },
+      durMs: 2800,
+    },
   },
   microChinTuck: {
-    head: { x: 66, y: 35, r: 8.5 },
-    dashedCircles: [{ x: 56, y: 33, r: 8.5 }],
+    // Base pose = the tucked (target) position; the animation glides the
+    // head back into it from the forward start, and the static image shows
+    // the forward position as a dashed ghost instead.
+    head: { x: 57, y: 33, r: 8.5 },
+    dashedCircles: [{ x: 66, y: 35, r: 8.5 }],
     chains: [
       [{ x: 58, y: 88 }, { x: 58, y: 52 }],
       [{ x: 44, y: 60 }, { x: 58, y: 56 }],
-      [{ x: 58, y: 52 }, { x: 62, y: 44 }],
+      [{ x: 58, y: 52 }, { x: 59, y: 44 }],
     ],
-    glow: { x: 60, y: 47, r: 5, kind: "strength" },
-    arrows: [[{ x: 86, y: 35 }, { x: 76, y: 35 }]],
+    glow: { x: 59, y: 47, r: 5, kind: "strength" },
+    arrows: [[{ x: 80, y: 34 }, { x: 70, y: 34 }]],
+    anim: {
+      chains: { 2: [{ x: 58, y: 52 }, { x: 63, y: 45 }] },
+      head: { x: 66, y: 35 },
+      durMs: 2400,
+    },
   },
 
   // ---- Self-tests --------------------------------------------------------
@@ -327,6 +479,7 @@ export const POSES: Record<string, Pose> = {
       [{ x: 78, y: 54 }, { x: 80, y: 72 }, { x: 78, y: 88 }],
     ],
     glow: { x: 82, y: 42, r: 4.5, kind: "stretch" },
+    pulse: true,
   },
   thomas: {
     ground: true,
@@ -342,6 +495,15 @@ export const POSES: Record<string, Pose> = {
     ],
     dashed: [[{ x: 60, y: 58 }, { x: 80, y: 56 }]],
     glow: { x: 66, y: 60, r: 5.5, kind: "stretch" },
+    // Shows the positive-test sign: the hanging thigh floating up from
+    // the resting position, then settling back down.
+    anim: {
+      chains: {
+        4: [{ x: 60, y: 58 }, { x: 80, y: 58 }],
+        5: [{ x: 80, y: 58 }, { x: 80, y: 78 }],
+      },
+      durMs: 3000,
+    },
   },
 };
 
@@ -382,7 +544,37 @@ function arrowPaths(arrow: Pt[]): { body: string; head: string } {
   return { body, head };
 }
 
-export function poseToSvg(pose: Pose): string {
+// The movement loop: start → active (hold at the squeeze/stretch) → start,
+// with a brief settle at the start position. SMIL keeps the animation
+// inside the SVG itself — no JS ticking, works offline, pauses with the
+// page.
+const KEYTIMES = "0;0.4;0.6;0.95;1";
+const SPLINES = "0.45 0 0.25 1;0 0 1 1;0.45 0 0.25 1;0 0 1 1";
+const DEFAULT_DUR_MS = 2600;
+
+function loopAnim(
+  attr: string,
+  start: string,
+  active: string,
+  durMs: number
+): string {
+  return `<animate attributeName="${attr}" values="${start};${active};${active};${start};${start}" keyTimes="${KEYTIMES}" calcMode="spline" keySplines="${SPLINES}" dur="${durMs}ms" repeatCount="indefinite"/>`;
+}
+
+function pulseAnim(attr: string, lo: string, hi: string, durMs: number): string {
+  return `<animate attributeName="${attr}" values="${lo};${hi};${lo}" keyTimes="0;0.5;1" calcMode="spline" keySplines="0.45 0 0.55 1;0.45 0 0.55 1" dur="${durMs}ms" repeatCount="indefinite"/>`;
+}
+
+export interface PoseSvgOptions {
+  /** Set false to render a static figure (e.g. prefers-reduced-motion). */
+  animate?: boolean;
+}
+
+export function poseToSvg(pose: Pose, opts: PoseSvgOptions = {}): string {
+  const animate = opts.animate ?? true;
+  const moving = animate && !!pose.anim;
+  const pulsing = animate && (moving || !!pose.pulse);
+  const dur = pose.anim?.durMs ?? DEFAULT_DUR_MS;
   const parts: string[] = [];
 
   for (const r of pose.rects ?? []) {
@@ -402,9 +594,19 @@ export function poseToSvg(pose: Pose): string {
   }
   if (pose.glow) {
     const color = pose.glow.kind === "stretch" ? STRETCH_COLOR : STRENGTH_COLOR;
+    const outerPulse = moving
+      ? loopAnim("opacity", "0.10", "0.26", dur)
+      : pulsing
+        ? pulseAnim("opacity", "0.10", "0.26", 2400)
+        : "";
+    const innerPulse = moving
+      ? loopAnim("opacity", "0.16", "0.42", dur)
+      : pulsing
+        ? pulseAnim("opacity", "0.16", "0.42", 2400)
+        : "";
     parts.push(
-      `<circle cx="${pose.glow.x}" cy="${pose.glow.y}" r="${pose.glow.r + 3.5}" fill="${color}" opacity="0.16"/>`,
-      `<circle cx="${pose.glow.x}" cy="${pose.glow.y}" r="${pose.glow.r}" fill="${color}" opacity="0.3"/>`
+      `<circle cx="${pose.glow.x}" cy="${pose.glow.y}" r="${pose.glow.r + 3.5}" fill="${color}" opacity="0.16">${outerPulse}</circle>`,
+      `<circle cx="${pose.glow.x}" cy="${pose.glow.y}" r="${pose.glow.r}" fill="${color}" opacity="0.3">${innerPulse}</circle>`
     );
   }
   for (const dash of pose.dashed ?? []) {
@@ -412,19 +614,33 @@ export function poseToSvg(pose: Pose): string {
       `<polyline points="${pts(dash)}" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-dasharray="4 5" opacity="0.35"/>`
     );
   }
-  for (const dc of pose.dashedCircles ?? []) {
-    parts.push(
-      `<circle cx="${dc.x}" cy="${dc.y}" r="${dc.r}" fill="none" stroke="currentColor" stroke-width="2" stroke-dasharray="4 4" opacity="0.4"/>`
-    );
+  // Dashed target-position hints are for the static image only — during
+  // animation the figure itself shows the target.
+  if (!moving) {
+    for (const dc of pose.dashedCircles ?? []) {
+      parts.push(
+        `<circle cx="${dc.x}" cy="${dc.y}" r="${dc.r}" fill="none" stroke="currentColor" stroke-width="2" stroke-dasharray="4 4" opacity="0.4"/>`
+      );
+    }
   }
-  for (const chain of pose.chains) {
+  pose.chains.forEach((chain, i) => {
+    const startFrame = moving ? pose.anim?.chains?.[i] : undefined;
+    const anim =
+      startFrame && startFrame.length === chain.length
+        ? loopAnim("points", pts(startFrame), pts(chain), dur)
+        : "";
     parts.push(
-      `<polyline points="${pts(chain)}" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>`
+      `<polyline points="${pts(chain)}" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round">${anim}</polyline>`
     );
-  }
+  });
   const head = pose.head;
+  const headAnim =
+    moving && pose.anim?.head
+      ? loopAnim("cx", String(pose.anim.head.x), String(head.x), dur) +
+        loopAnim("cy", String(pose.anim.head.y), String(head.y), dur)
+      : "";
   parts.push(
-    `<circle cx="${head.x}" cy="${head.y}" r="${head.r ?? 6.5}" fill="currentColor"/>`
+    `<circle cx="${head.x}" cy="${head.y}" r="${head.r ?? 6.5}" fill="currentColor">${headAnim}</circle>`
   );
   for (const arrow of pose.arrows ?? []) {
     const { body, head: headPath } = arrowPaths(arrow);
