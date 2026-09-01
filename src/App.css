@@ -3233,3 +3233,201 @@ button,
   font-weight: 700;
   color: #22c55e;
 }
+
+/* --- Exercise library ------------------------------------------------------ */
+
+.library {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.library-intro {
+  font-size: 13px;
+  color: var(--text-muted);
+  line-height: 1.55;
+}
+
+.library-search {
+  width: 100%;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: var(--radius-sm);
+  padding: 12px 14px;
+  font-family: inherit;
+  font-size: 14px;
+}
+
+.library-search:focus {
+  outline: none;
+  border-color: var(--blue);
+}
+
+.library-filters {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.library-select {
+  width: auto;
+  margin-top: 0;
+}
+
+.library-count {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-faint);
+  margin-left: auto;
+}
+
+.library-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.library-row {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+.library-row-open {
+  border-color: var(--blue);
+}
+
+.library-row-head {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  background: none;
+  border: none;
+  font-family: inherit;
+  text-align: left;
+  padding: 12px 16px;
+  cursor: pointer;
+  color: var(--text);
+}
+
+.library-row-title {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.library-row-name {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.library-row-meta {
+  font-size: 11.5px;
+  color: var(--text-muted);
+}
+
+.library-row-chev {
+  font-size: 18px;
+  color: var(--text-faint);
+  flex-shrink: 0;
+}
+
+.library-row-body {
+  padding: 0 16px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.library-images {
+  display: flex;
+  gap: 10px;
+}
+
+.library-images img {
+  width: calc(50% - 5px);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--bg-card-2);
+}
+
+.library-row-body .check-steps {
+  margin: 0;
+}
+
+.library-more {
+  align-self: center;
+}
+
+/* --- Set logging ----------------------------------------------------------- */
+
+.setlog-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 100px;
+  padding: 8px 10px 8px 16px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.setlog-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.setlog-input {
+  width: 64px;
+  padding: 7px 9px;
+  font-size: 13px;
+}
+
+.setlog-x {
+  color: var(--text-faint);
+  font-size: 12px;
+}
+
+.setlog-done {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #22c55e;
+  padding: 0 8px;
+}
+
+.strength-row {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+  font-size: 13px;
+  border-bottom: 1px solid var(--border);
+  padding: 8px 0;
+}
+
+.strength-row:last-of-type {
+  border-bottom: none;
+}
+
+.strength-name {
+  font-weight: 700;
+}
+
+.strength-meta {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.strength-best {
+  margin-left: auto;
+  font-size: 12px;
+  font-weight: 700;
+  color: #22c55e;
+}

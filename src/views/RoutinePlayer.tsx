@@ -9,6 +9,7 @@ import {
   praiseLine,
   startLine,
 } from "../apt/motivation";
+import { lastSetFor, loadSetLog, logSet } from "../apt/strengthLog";
 import type { AudioCues } from "../useAudioCues";
 import { DemoLink } from "./DemoLink";
 import { ExerciseFigure } from "./ExerciseFigure";
@@ -317,6 +318,15 @@ function RoutinePlayerInner({
           )}
         </ul>
 
+        {step.exercise.category === "strength" &&
+          step.exercise.scheme.kind === "reps" && (
+            <SetLogRow
+              key={index}
+              exerciseId={step.exercise.id}
+              defaultReps={step.exercise.scheme.reps}
+            />
+          )}
+
         <DemoLink query={exerciseVideoQuery(step.exercise)} />
 
         {next ? (
@@ -351,3 +361,66 @@ function RoutinePlayerInner({
 
 // Memoized: the app root re-renders ~10×/s while desk monitoring runs.
 export const RoutinePlayer = memo(RoutinePlayerInner);
+
+// ---- Optional set logging for loaded strength work ------------------------
+
+function SetLogRow({
+  exerciseId,
+  defaultReps,
+}: {
+  exerciseId: string;
+  defaultReps: number;
+}) {
+  const last = useMemo(() => lastSetFor(loadSetLog(), exerciseId), [exerciseId]);
+  const [weight, setWeight] = useState(() =>
+    last?.weightKg != null ? String(last.weightKg) : ""
+  );
+  const [reps, setReps] = useState(String(defaultReps));
+  const [logged, setLogged] = useState(false);
+
+  return (
+    <div className="setlog-row">
+      <span className="setlog-label">
+        {last
+          ? `Last: ${last.weightKg != null ? `${last.weightKg} kg × ` : ""}${last.reps}`
+          : "Track the load"}
+      </span>
+      <input
+        type="number"
+        className="settings-input setlog-input"
+        placeholder="kg"
+        min={0}
+        step={0.5}
+        value={weight}
+        onChange={(e) => setWeight(e.target.value)}
+        aria-label="Weight in kilograms (optional)"
+      />
+      <span className="setlog-x">×</span>
+      <input
+        type="number"
+        className="settings-input setlog-input"
+        min={1}
+        value={reps}
+        onChange={(e) => setReps(e.target.value)}
+        aria-label="Reps"
+      />
+      {logged ? (
+        <span className="setlog-done">✓ Logged</span>
+      ) : (
+        <button
+          className="habit-snooze"
+          onClick={() => {
+            logSet({
+              exerciseId,
+              weightKg: weight.trim() === "" ? null : Number(weight),
+              reps: Number(reps) || defaultReps,
+            });
+            setLogged(true);
+          }}
+        >
+          Log set
+        </button>
+      )}
+    </div>
+  );
+}

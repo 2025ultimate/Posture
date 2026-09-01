@@ -13,6 +13,8 @@ import {
 import { computeInsights, loadHistory, clearHistory } from "../sessionHistory";
 import type { Insights } from "../sessionHistory";
 import { lastNDayKeys } from "../apt/storage";
+import { EXERCISES } from "../apt/exercises";
+import { loadSetLog, summarizeLog } from "../apt/strengthLog";
 import { IconFlame } from "./Icons";
 
 interface ProgressViewProps {
@@ -49,6 +51,12 @@ function ProgressViewInner({
     void assessVersion;
     return loadSelfTests();
   }, [assessVersion]);
+
+  const strength = useMemo(() => {
+    // Refreshes when a routine completes (adherence recomputes).
+    void adherence;
+    return summarizeLog(loadSetLog());
+  }, [adherence]);
 
   const breakStats = useMemo(() => {
     void assessVersion;
@@ -243,6 +251,35 @@ function ProgressViewInner({
           guard is running.
         </p>
       </div>
+
+      {strength.length > 0 && (
+        <div className="progress-section-card">
+          <h3 className="metrics-title">Strength log</h3>
+          {strength.slice(0, 6).map((p) => {
+            const name = EXERCISES[p.exerciseId]?.name ?? p.exerciseId;
+            const lastLabel = `${p.last.weightKg != null ? `${p.last.weightKg} kg × ` : ""}${p.last.reps}`;
+            const bestLabel =
+              p.bestWeightKg != null ? `${p.bestWeightKg} kg` : `${p.bestReps} reps`;
+            return (
+              <div key={p.exerciseId} className="strength-row">
+                <span className="strength-name">{name}</span>
+                <span className="strength-meta">
+                  last {lastLabel} ·{" "}
+                  {new Date(p.last.ts).toLocaleDateString(undefined, {
+                    month: "short",
+                    day: "numeric",
+                  })}
+                </span>
+                <span className="strength-best">best {bestLabel}</span>
+              </div>
+            );
+          })}
+          <p className="progress-empty">
+            Logged from the routine player on loaded strength exercises. Add
+            weight when 3 sets feel easy.
+          </p>
+        </div>
+      )}
 
       {insights.totalSessions > 0 && (
         <InsightsCard insights={insights} onClear={handleClearDesk} />

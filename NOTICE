@@ -32,3 +32,9 @@ each under its own license:
   Copyright (c) 2013-2020 GitHub Inc.
   Licensed under the MIT License
   https://github.com/electron/electron/blob/main/LICENSE
+
+* Free Exercise DB (exercise names, instructions, and photos shown in
+  the Exercise Library; data bundled, photos loaded from the project's
+  repository on demand)
+  Released into the public domain (Unlicense)
+  https://github.com/yuhonas/free-exercise-db

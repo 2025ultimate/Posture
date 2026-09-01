@@ -1,19 +1,46 @@
-import { memo } from "react";
+import { memo, useState } from "react";
+import { LibraryPanel } from "./LibraryPanel";
 // Education for someone who just found out they have anterior pelvic tilt
 // and sits all day. Written to be practical and to push back on the two
 // classic traps: obsessing over a normal amount of tilt, and expecting a
-// gadget to fix what only consistent training fixes.
+// gadget to fix what only consistent training fixes. Plus the browsable
+// public-domain exercise library.
 
 function LearnViewInner() {
+  const [mode, setMode] = useState<"about" | "library">("about");
+
   return (
     <div className="view learn-view">
       <div className="view-head">
-        <h1 className="view-title">Understanding anterior pelvic tilt</h1>
+        <h1 className="view-title">
+          {mode === "about" ? "Understanding anterior pelvic tilt" : "Exercise library"}
+        </h1>
         <p className="view-sub">
-          Five minutes of context that makes the daily work make sense.
+          {mode === "about"
+            ? "Five minutes of context that makes the daily work make sense."
+            : "Browse beyond the daily program — search 876 exercises by muscle and level."}
         </p>
       </div>
 
+      <div className="seg">
+        <button
+          className={`seg-btn ${mode === "about" ? "seg-btn-active" : ""}`}
+          onClick={() => setMode("about")}
+        >
+          About APT
+        </button>
+        <button
+          className={`seg-btn ${mode === "library" ? "seg-btn-active" : ""}`}
+          onClick={() => setMode("library")}
+        >
+          Exercise library
+        </button>
+      </div>
+
+      {mode === "library" && <LibraryPanel />}
+
+      {mode === "about" && (
+        <>
       <div className="learn-card">
         <h3 className="learn-title">What it is</h3>
         <p>
@@ -129,6 +156,8 @@ function LearnViewInner() {
         professional's guidance ever conflicts with this app, follow the
         professional.
       </div>
+        </>
+      )}
     </div>
   );
 }

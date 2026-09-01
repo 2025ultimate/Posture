@@ -15,6 +15,8 @@ const ALLOWED_HOSTS = [
   self.location.host,
   "cdn.jsdelivr.net",
   "storage.googleapis.com",
+  // Public-domain exercise photos (Free Exercise DB) — cached as browsed.
+  "raw.githubusercontent.com",
 ];
 
 self.addEventListener("install", (event) => {
