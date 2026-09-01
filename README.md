@@ -1,8 +1,8 @@
-# PostureGuard — AI Posture Corrector for Your Computer
+# PostureGuard — Your Anterior Pelvic Tilt Companion
 
-**A free, privacy-first posture correction tool that uses your webcam and on-device AI to help you sit better, work healthier, and prevent neck and back pain — at your desk, at home, or in the office.**
+**A free, privacy-first coach for fixing anterior pelvic tilt (APT): a daily guided corrective routine, camera posture check-ins, and a desk companion that breaks up the sitting that caused the problem. Runs on your phone and your computer, entirely on-device.**
 
-**Live demo: [https://nopain.gonav.tech](https://nopain.gonav.tech)**
+**Live app: [https://nopain.gonav.tech](https://nopain.gonav.tech)**
 
 A [Govind Kedia](https://www.gonav.tech) / [GoNav Tech](https://www.gonav.tech) product.
 
@@ -10,147 +10,82 @@ A [Govind Kedia](https://www.gonav.tech) / [GoNav Tech](https://www.gonav.tech) 
 
 ## What is PostureGuard?
 
-PostureGuard is a real-time posture monitor that runs entirely in your browser. Point your webcam at yourself while you work, and it quietly watches your neck, shoulders, and head position. The moment you slip into a slouch or "tech neck," it pings you with a gentle reminder. Nothing fancy to install, no account to create, no video ever leaves your computer.
+PostureGuard is a companion app for people with anterior pelvic tilt — the forward-tipped pelvis, arched lower back and pushed-out belly that a sitting job quietly builds over years. It's designed around the one thing that actually corrects APT: **a short corrective routine done nearly every day for 8–12 weeks, plus fewer unbroken hours in a chair.**
 
-It's built for anyone who spends long hours in front of a screen — software developers, designers, students, gamers, writers, traders, remote workers, and anyone who's noticed their neck or back hurting at the end of the day.
+The app has five parts:
 
-## Privacy first — your video never leaves your device
+- **Today** — your daily 10–15 minute routine with a guided player: timers, step-by-step cues, optional voice coaching, streaks, and a three-level program that progresses as you do (Reset → Build → Strengthen). Exercises follow the standard lower-crossed-syndrome approach: stretch the tight hip flexors and lower back, strengthen the weak glutes, abs and hamstrings, and re-learn where neutral pelvis is.
+- **Check** — measurable check-ins. A guided **side-view camera check** (prop your phone, stand sideways, auto-capture) estimates the alignment pattern that travels with APT — hips pushed forward over the ankles, ribcage behind the pelvis, forward head, locked knees — and tracks it over weeks. Plus the two classic at-home self-tests, guided step by step: the **wall test** (lumbar gap) and the **Thomas test** (hip flexor length).
+- **Desk** — the live webcam posture monitor for work hours, now with a **sitting-break coach**: because the camera can tell whether you're actually at the desk, it counts *continuous* seated time, nudges you up before your hip flexors set, logs the break automatically when you actually stand up, and hands you a 30-second APT micro-break to do.
+- **Progress** — routine streaks and a 4-week calendar, camera check-in trends, self-test history, sitting-break stats, and your desk-session insights.
+- **Learn** — plain-language education: what APT is (and how much tilt is normal), why sitting feeds it, what fixes it, what cameras can and can't measure, and when to see a professional.
 
-**PostureGuard is built so that you can trust it with your camera.** Here's exactly what happens — and doesn't happen — when you use it:
+Install it on your phone (it's a PWA — "Add to Home Screen"), keep it open at your desk, or build the Electron desktop app.
+
+## Being honest about what the cameras measure
+
+Most "posture apps" oversell their cameras. Here's the truth this app is built on:
+
+- A pose model estimates joint centers, not the bony pelvic landmarks a clinician uses to measure true pelvic tilt. So the side-view check reports **alignment proxies** (as % of body height) and treats the **trend across weeks** as the signal — it is not a medical measurement.
+- A desk webcam sees your upper body from the front. It can never see your pelvis while you sit. Its honest jobs are neck/shoulder posture and *presence detection* — which is exactly what makes the sitting-break coach work.
+- For the pelvis itself, the low-tech wall test and Thomas test tell you more than any camera. That's why they're first-class citizens in the app.
+
+## Privacy first — nothing leaves your device
+
+**PostureGuard is built so that you can trust it with your camera.**
 
 ### What we *don't* do
 
-- **We don't see your video.** Your webcam stream is processed entirely inside your own browser. It is not uploaded, streamed, or recorded anywhere.
+- **We don't see your video.** Camera streams are processed entirely inside your browser. The side-view check saves only the measured angles — never a photo.
 - **We don't have a server.** PostureGuard is a static web page. There is no backend that could receive your data even if it tried.
-- **No accounts, no signups, no cookies, no tracking pixels.** You don't tell us who you are; we have no way to know.
-- **No analytics.** There is no Google Analytics, no Mixpanel, no telemetry, no "anonymous usage data" being sent. None.
+- **No accounts, no signups, no cookies, no tracking pixels, no analytics.**
 - **We don't sell or share data.** There is nothing to sell.
-- **No third-party scripts** at runtime — no ads, no chat widgets, no fingerprinting libraries.
+- **No third-party scripts** at runtime.
 
 ### How it actually works (the technical bit)
 
-PostureGuard uses [Google MediaPipe](https://developers.google.com/mediapipe) — the same on-device computer-vision toolkit that ships inside Android and Chrome — compiled to WebAssembly and run by your browser. When you click *Start Monitoring*:
+PostureGuard uses [Google MediaPipe](https://developers.google.com/mediapipe) — the same on-device computer-vision toolkit that ships inside Android and Chrome — compiled to WebAssembly and run by your browser:
 
-1. Your browser downloads two static files: the MediaPipe runtime (a small WebAssembly binary) and the pose-detection model (a ~6 MB `.task` file). Both come from Google's public MediaPipe CDN. They are publicly-available, signed assets, the same ones Google ships to millions of other MediaPipe applications.
-2. Your browser asks for camera permission and starts a local video stream using the standard `getUserMedia` Web API.
-3. Each frame is fed *only* into the local MediaPipe model running inside your browser tab. The model returns coordinates (where your shoulders, ears, eyes, nose, and wrists are). Those coordinates are analyzed by the JavaScript you already loaded — still inside your browser tab.
-4. **No frame, no coordinate, no result is ever transmitted out of your device.** After the initial model load, the app makes zero outbound network requests.
+1. On first use, your browser downloads two static files: the MediaPipe runtime (a small WebAssembly binary) and the pose model (~6 MB `.task` file), both from Google's public CDN. The service worker caches them, so afterwards the app works offline.
+2. Camera frames are fed *only* into the local model inside your browser tab. It returns coordinates (where your shoulders, hips, ears are), which are analyzed by the JavaScript you already loaded.
+3. **No frame, no coordinate, no result is ever transmitted out of your device.** After the initial model load, the app makes zero outbound network requests.
 
-You can verify this yourself: open your browser's DevTools, switch to the Network tab, click *Start Monitoring*, and watch. You'll see two requests at startup (the runtime and model), and then complete silence — even if you sit there for hours.
+Verify it yourself: open DevTools → Network, use the app, and watch the silence.
 
-### Your settings stay on your device
+### Your data stays local
 
-Your alert-tone choice, habit reminder schedule, theme, and session history are stored in your browser's `localStorage` — a per-site storage area that lives only on your computer. Clearing your browser data wipes all of it. None of it leaves your device.
+Routines completed, streaks, check-in results, self-tests, sitting breaks, desk-session history, and settings all live in your browser's `localStorage` (every key is prefixed `postureguard.`). Clearing browser data wipes it. Nothing syncs anywhere.
 
-### Want it fully offline?
+## The program (what you'll actually do)
 
-Build the [Electron desktop app](BUILDING.md) — it bundles the MediaPipe model locally, so after install it works with Wi-Fi off, on a plane, or air-gapped. Pull the network cable and it keeps running.
+| Level | Focus | Sample day |
+|---|---|---|
+| **1 · Reset** | Find neutral pelvis, wake up glutes + deep core | 90/90 breathing · lying pelvic tilts · glute bridges · dead bugs · half-kneeling hip flexor stretch · child's pose |
+| **2 · Build** | Neutral pelvis while standing, single-leg glute work | wall tilts · single-leg bridges · reverse crunches · hard-style plank · couch stretch |
+| **3 · Strengthen** | Real load — the level you keep | hip thrusts · hamstring walkouts · hollow holds · couch stretch · wall tilts |
 
-### The source is public — read it for yourself
+The app suggests moving up after ~2 weeks and 10 completed days on a level. Every stretch is cued with the detail that matters most for APT (*tuck the pelvis first*), and every core exercise with the giveaway to avoid (*the low back never leaves the floor*).
 
-The complete source code for this repository is the running app. There is no "minified" mystery layer — what you see here is what the demo executes. If you don't trust our word, trust the code:
+At the desk, the sitting coach defaults to a nudge every 40 minutes of continuous sitting, and the micro-break library (standing hip flexor opener, wall tilts, glute resets, a two-minute walk) undoes the position between routines.
 
-- Looking for network calls? `grep -r "fetch\|XMLHttpRequest\|WebSocket" src/` — you'll find none.
-- Want to see the model URLs? They're in [`src/usePostureMonitor.ts`](src/usePostureMonitor.ts) — the only two external URLs in the whole app.
-- Want to know what we store? Search for `localStorage` in `src/` — every key is prefixed `postureguard.`.
+## Desk features carried forward
+
+The original PostureGuard desk monitor is all still here: real-time neck/shoulder/head tracking, activity awareness (it stays quiet when you're on a call, on your phone, talking to someone, or away), one alert per episode with a 12-minute quiet window, five chime tones, voice reminders, water/stretch/eye-break habit timers, camera-saver duty cycling, background-tab operation, and light/dark themes.
 
 ## Try it now
 
-Open the demo in any modern browser (Chrome, Edge, Firefox, or Safari) and click Start Monitoring:
+Open **[https://nopain.gonav.tech](https://nopain.gonav.tech)** in any modern browser.
 
-**[https://nopain.gonav.tech](https://nopain.gonav.tech)**
+- **On your phone:** use the browser menu → *Add to Home Screen* to install it as an app. Do the daily routine and the side-view checks here.
+- **At your desk:** keep it open in a tab (or build the desktop app) and start Desk guard when you sit down.
 
-The first time you start it, your browser will ask permission to use the camera. That permission is local-only — the video stream is processed on your machine and never uploaded anywhere.
+## Not medical advice
 
-## Features
-
-### Smart posture analysis
-
-- Tracks four real-time signals every second: neck tilt, shoulder level, head-forward position, and eye level
-- AI-powered pose detection (Google MediaPipe) running fully on-device
-- Smoothed scoring so a one-frame glitch doesn't trigger a false alarm
-
-### Knows when not to nag
-
-PostureGuard recognizes when you're doing something other than focused desk work and stays quiet:
-
-- **On a phone call** — detects your hand at your ear
-- **Looking at your phone** — detects head bent forward with phone in hand
-- **Talking to someone** — detects head turned to the side
-- **Away from the desk** — detects when no one is in the frame
-- **Moving around** — gesturing, stretching, drinking water — alerts pause automatically for a few seconds after you settle
-
-### Respectful alerts
-
-- One alert per bad-posture episode, then a **12-minute quiet window** — no constant pinging
-- Pick from five chime tones (Beep, Ding, Chime, Chirp, Buzz)
-- **Pause Alerts** button with a **Spacebar shortcut** when you need full silence
-
-### Healthy habit reminders
-
-Built-in 20-20-20 eye-care, hydration, and stand-and-stretch reminders. Each one is independently configurable:
-
-- Choose the interval (Water default 45 min, Stretch 60 min, Eye break 20 min)
-- Pick **Ping** for a short chime, or **Voice** for a spoken reminder
-- Reminders automatically pause when you Pause Alerts or Stop Monitoring
-
-### Exercise break library
-
-Eight desk-friendly exercises with timed countdowns — neck rolls, shoulder shrugs, chin tucks, doorway chest stretch, seated spinal twist, wrist flexor stretch, eye palming, and upper back stretch. One-tap shuffle and built-in 20-to-60-second timer.
-
-### Insights from your sessions
-
-- See your total tracked time, average bad-posture percentage, and top recurring issues
-- Posture quality broken down by time of day (Morning / Afternoon / Evening / Late night)
-- Personalized recommendations as the data builds up
-
-### Built for long sessions
-
-- **Camera saver** mode cycles the camera on and off to reduce CPU and battery use during multi-hour sessions
-- **Background mode** — alerts keep firing even when the tab isn't focused
-- **Dark and light themes** — switches automatically with your OS, or pick one manually
-
-### Privacy first
-
-- 100% on-device processing — your video never leaves your computer
-- No tracking, no accounts, no server, no analytics
-- Works offline as a desktop app (macOS, Windows, Linux via Electron)
-
-See [Privacy first — your video never leaves your device](#privacy-first--your-video-never-leaves-your-device) above for the full technical details.
-
-## Who is this for?
-
-- Software engineers, designers, and PMs spending 8+ hours on a laptop
-- Students and researchers in long study sessions
-- Remote and work-from-home professionals
-- Gamers and streamers concerned about long-term posture
-- Writers, traders, accountants, and anyone with a desk job
-- Physical therapists looking for a simple home-use tool for their patients
-
-## Why PostureGuard?
-
-Most posture correction tools either need a hardware wearable, send your video to the cloud, or nag you constantly. PostureGuard solves all three:
-
-- **No hardware** — just your webcam
-- **No cloud** — pose analysis runs locally with MediaPipe
-- **No nagging** — the 12-minute alert cooldown and the activity detection (phone, talking, writing) mean you only hear from it when it matters
-
-It's the same kind of AI pose detection used by professional fitness and rehab apps, repurposed for posture correction at your desk and made free for anyone to use.
-
-## How it works
-
-1. Open the [demo](https://nopain.gonav.tech) in your browser
-2. Click **Start Monitoring** and allow camera access
-3. Sit normally and work as you usually do
-4. When your posture starts to slip:
-   - The status badge turns red and shows specifically what's off (neck tilted, head too far forward, etc.)
-   - After about 8 seconds of sustained bad posture, a gentle chime plays
-   - You then get a 12-minute quiet period — no further beeps until you've had time to correct or relax
-5. Click **Stop Monitoring** when you're done. The session is saved locally for your Insights.
+PostureGuard is an educational and habit tool. Some anterior tilt is normal anatomy; the app coaches toward comfort and control, not a perfect number. If you have radiating pain, numbness or tingling, night pain, pain after trauma, or no change after 8–12 weeks of consistent work — see a physiotherapist or physician. If a professional's guidance conflicts with this app, follow the professional.
 
 ## For developers — local setup
 
-PostureGuard is source-available under the PolyForm Noncommercial License 1.0.0 — free for personal, educational, research, and other non-commercial use. To run it locally:
+Source-available under the PolyForm Noncommercial License 1.0.0 — free for personal, educational, research, and other non-commercial use.
 
 ```bash
 # Requirements: Node.js 18+
@@ -163,13 +98,13 @@ The dev server runs at `http://localhost:5173`.
 ### Production build
 
 ```bash
-npm run build       # outputs to dist/
+npm run build       # outputs to dist/ (static site + PWA service worker)
 npm run preview     # serve the production build locally
 ```
 
-The `dist/` folder is a fully static site — host it on any CDN, static server, or S3 bucket. Camera access requires HTTPS in production (or localhost for development).
+The `dist/` folder is a fully static site — host it on any CDN or static server. Camera access requires HTTPS in production (or localhost in dev).
 
-### Build the desktop app (Electron)
+### Desktop app (Electron)
 
 ```bash
 npm run package         # current OS
@@ -178,43 +113,44 @@ npm run package:win     # Windows installer
 npm run package:linux   # Linux AppImage
 ```
 
-See [BUILDING.md](BUILDING.md) for details and [DEPLOYING.md](DEPLOYING.md) for self-hosting notes.
+The desktop build bundles the MediaPipe model locally, so it runs fully offline. See [BUILDING.md](BUILDING.md) and [DEPLOYING.md](DEPLOYING.md).
+
+### Regenerating the PWA icons
+
+```bash
+npm run icons   # dependency-free PNG generator → public/*.png
+```
 
 ## Tech stack
 
-- **React 19** + **TypeScript** for the UI
-- **Vite** for the build pipeline
-- **MediaPipe Tasks Vision** for on-device pose landmark detection
-- **Electron** for the optional desktop app
-- **Web Audio API** for chime synthesis
-- **Web Speech API** for the optional voice reminders
+- **React 19** + **TypeScript**, **Vite**
+- **MediaPipe Tasks Vision** for on-device pose landmarks
+- **PWA** (manifest + service worker) for the installable mobile app
+- **Electron** for the desktop app
+- **Web Audio API** chimes · **Web Speech API** voice coaching
+- No backend, no database, no analytics — by design
 
 ## License
 
-Licensed under the **[PolyForm Noncommercial License 1.0.0](https://polyformproject.org/licenses/noncommercial/1.0.0/)**. See the [LICENSE](LICENSE) file for the full text and [NOTICE](NOTICE) for third-party attributions.
+Licensed under the **[PolyForm Noncommercial License 1.0.0](https://polyformproject.org/licenses/noncommercial/1.0.0/)**. See [LICENSE](LICENSE) and [NOTICE](NOTICE).
 
 ```
 Copyright 2026 Govind Kedia / GoNav Tech (https://www.gonav.tech)
-
-Licensed under the PolyForm Noncommercial License 1.0.0.
 ```
 
-In short:
-
-- **Free** for personal use, study, research, hobby projects, education, and use by charitable / public-interest organizations.
-- **Not** free for commercial use — running PostureGuard as part of a paid product, paid service, or any commercial offering requires a separate license.
-- **Modifications are welcome** for any permitted (non-commercial) purpose; you may share your changes under the same terms.
+- **Free** for personal use, study, research, hobby projects, education, and charitable / public-interest organizations.
+- **Not** free for commercial use — running PostureGuard as part of a paid product or service requires a separate license.
+- **Modifications welcome** for any permitted (non-commercial) purpose, shared under the same terms.
 
 **Commercial licensing inquiries:** [contact@analystology.com](mailto:contact@analystology.com)
 
 ## Credits
 
-- Created by **[Govind Kedia](https://www.gonav.tech)**
-- Brought to you by **[GoNav Tech](https://www.gonav.tech)**
+- Created by **[Govind Kedia](https://www.gonav.tech)**, brought to you by **[GoNav Tech](https://www.gonav.tech)**
 - Pose detection powered by [Google MediaPipe](https://developers.google.com/mediapipe)
 
-If PostureGuard helps you sit a little straighter, share it with someone else who could use a small nudge.
+If PostureGuard helps your back feel better, share it with someone else whose chair is winning.
 
 ## Keywords
 
-posture corrector, ai posture monitor, webcam posture tracker, posture correction software, free posture app, desk posture, tech neck, forward head posture, ergonomic monitor, slouch detector, remote work health, work from home posture, real-time posture analysis, browser-based posture tool, mediapipe pose detection, computer vision posture, healthy desk habits, 20-20-20 eye rule, sit straight reminder, neck pain prevention.
+anterior pelvic tilt fix, APT exercises, pelvic tilt correction app, lower crossed syndrome, hip flexor stretch reminder, posture corrector, ai posture monitor, webcam posture tracker, sitting break timer, desk posture, tech neck, forward head posture, ergonomic monitor, slouch detector, remote work health, posture self-assessment, wall test, Thomas test, glute bridge routine, on-device pose detection, privacy-first health app.

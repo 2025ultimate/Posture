@@ -1,6 +1,7 @@
 import { useRef, useState, useCallback, useEffect } from "react";
-import { PoseLandmarker, FilesetResolver, DrawingUtils } from "@mediapipe/tasks-vision";
+import { PoseLandmarker, DrawingUtils } from "@mediapipe/tasks-vision";
 import type { NormalizedLandmark } from "@mediapipe/tasks-vision";
+import { createPoseLandmarker } from "./poseAssets";
 import { analyzePosture } from "./postureAnalysis";
 import type { PostureResult } from "./postureAnalysis";
 import { appendSession } from "./sessionHistory";
@@ -18,15 +19,6 @@ interface SessionStats {
 
 export type MonitorState = "idle" | "loading" | "running" | "error";
 export type CameraPhase = "on" | "off" | "always";
-export type AlertTone = "beep" | "ding" | "chime" | "chirp" | "buzz";
-
-export const ALERT_TONE_LABELS: Record<AlertTone, string> = {
-  beep: "Beep",
-  ding: "Ding",
-  chime: "Chime",
-  chirp: "Chirp",
-  buzz: "Buzz",
-};
 
 export interface DutyCycleSettings {
   enabled: boolean;
@@ -59,29 +51,6 @@ const HAND_MOTION_INDICES = [15, 16]; // wrists only — finger landmarks
 // Posture changes slowly; >10 fps wastes CPU/GPU without changing UX.
 const FOREGROUND_DETECT_INTERVAL_MS = 100;
 const BACKGROUND_DETECT_INTERVAL_MS = 500;
-const ALERT_TONE_STORAGE_KEY = "postureguard.alertTone";
-
-// In a packaged Electron app the page is loaded via file:// — in that case
-// prefer the locally bundled WASM + model so the app works offline.
-// In dev/web fall back to the CDN.
-const WASM_CDN = "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.35/wasm";
-const MODEL_CDN =
-  "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/latest/pose_landmarker_lite.task";
-const WASM_LOCAL = "./wasm";
-const MODEL_LOCAL = "./models/pose_landmarker_lite.task";
-
-function isStandalone(): boolean {
-  if (typeof window === "undefined") return false;
-  if (window.electronAPI?.isElectron) return true;
-  return window.location.protocol === "file:";
-}
-
-function loadStoredTone(): AlertTone {
-  if (typeof window === "undefined") return "beep";
-  const stored = window.localStorage.getItem(ALERT_TONE_STORAGE_KEY);
-  if (stored && stored in ALERT_TONE_LABELS) return stored as AlertTone;
-  return "beep";
-}
 
 function frameDisplacement(
   curr: NormalizedLandmark[],
@@ -103,7 +72,9 @@ function frameDisplacement(
   return count > 0 ? total / count : 0;
 }
 
-export function usePostureMonitor() {
+// The caller supplies the alert sound (see useAudioCues) so all app audio
+// comes from one place.
+export function usePostureMonitor(playAlert: () => void) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const landmarkerRef = useRef<PoseLandmarker | null>(null);
@@ -112,11 +83,10 @@ export function usePostureMonitor() {
   const lastBeepRef = useRef<number>(0);
   const [alertCooldownUntil, setAlertCooldownUntil] = useState<number>(0);
   const resultsBufferRef = useRef<PostureResult[]>([]);
-  const audioCtxRef = useRef<AudioContext | null>(null);
   const dutyCycleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const runningRef = useRef(false);
   const detectFnRef = useRef<(() => void) | null>(null);
-  const alertToneRef = useRef<AlertTone>(loadStoredTone());
+  const playAlertRef = useRef(playAlert);
   const drawingUtilsRef = useRef<DrawingUtils | null>(null);
   const sessionStatsRef = useRef<SessionStats | null>(null);
   const prevLandmarksRef = useRef<NormalizedLandmark[] | null>(null);
@@ -137,7 +107,6 @@ export function usePostureMonitor() {
     onDuration: 30,
     offDuration: 60,
   });
-  const [alertTone, setAlertTone] = useState<AlertTone>(loadStoredTone);
   const [alertsPaused, setAlertsPaused] = useState(false);
   const alertsPausedRef = useRef(false);
   const badStartRef = useRef<number | null>(null);
@@ -146,87 +115,12 @@ export function usePostureMonitor() {
     alertsPausedRef.current = alertsPaused;
   }, [alertsPaused]);
 
+  useEffect(() => {
+    playAlertRef.current = playAlert;
+  }, [playAlert]);
+
   const toggleAlertsPaused = useCallback(() => {
     setAlertsPaused((p) => !p);
-  }, []);
-
-  useEffect(() => {
-    alertToneRef.current = alertTone;
-    if (typeof window !== "undefined") {
-      window.localStorage.setItem(ALERT_TONE_STORAGE_KEY, alertTone);
-    }
-  }, [alertTone]);
-
-  const ensureAudioContext = useCallback((): AudioContext => {
-    if (!audioCtxRef.current || audioCtxRef.current.state === "closed") {
-      audioCtxRef.current = new AudioContext();
-    }
-    if (audioCtxRef.current.state === "suspended") {
-      void audioCtxRef.current.resume();
-    }
-    return audioCtxRef.current;
-  }, []);
-
-  const playAlert = useCallback(() => {
-    const ctx = ensureAudioContext();
-
-    const tone = (freq: number, dur: number, vol: number, type: OscillatorType = "sine", startOffset = 0) => {
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      osc.type = type;
-      osc.frequency.setValueAtTime(freq, ctx.currentTime + startOffset);
-      gain.gain.setValueAtTime(vol, ctx.currentTime + startOffset);
-      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + startOffset + dur);
-      osc.start(ctx.currentTime + startOffset);
-      osc.stop(ctx.currentTime + startOffset + dur + 0.01);
-    };
-
-    switch (alertToneRef.current) {
-      case "beep":
-        tone(880, 0.25, 0.5);
-        tone(660, 0.25, 0.4, "sine", 0.3);
-        break;
-      case "ding":
-        tone(1047, 0.9, 0.6);
-        tone(2093, 0.5, 0.15, "sine", 0.01);
-        break;
-      case "chime":
-        tone(523, 0.35, 0.5);
-        tone(659, 0.35, 0.45, "sine", 0.2);
-        tone(784, 0.55, 0.4, "sine", 0.4);
-        break;
-      case "chirp": {
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        osc.connect(gain);
-        gain.connect(ctx.destination);
-        osc.type = "sine";
-        osc.frequency.setValueAtTime(400, ctx.currentTime);
-        osc.frequency.exponentialRampToValueAtTime(900, ctx.currentTime + 0.18);
-        gain.gain.setValueAtTime(0.5, ctx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.22);
-        osc.start(ctx.currentTime);
-        osc.stop(ctx.currentTime + 0.23);
-        break;
-      }
-      case "buzz":
-        tone(300, 0.08, 0.45, "square");
-        tone(300, 0.08, 0.45, "square", 0.15);
-        tone(300, 0.08, 0.45, "square", 0.3);
-        break;
-    }
-  }, [ensureAudioContext]);
-
-  const speak = useCallback((text: string) => {
-    if (!("speechSynthesis" in window)) return;
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.rate = 0.95;
-    utterance.pitch = 1.0;
-    utterance.volume = 1.0;
-    window.speechSynthesis.cancel();
-    window.speechSynthesis.speak(utterance);
   }, []);
 
   const fireAlerts = useCallback((elapsed: number, now: number) => {
@@ -242,8 +136,8 @@ export function usePostureMonitor() {
 
     lastBeepRef.current = now;
     setAlertCooldownUntil(now + POSTURE_ALERT_COOLDOWN_MS);
-    playAlert();
-  }, [playAlert]);
+    playAlertRef.current();
+  }, []);
 
   const smoothedResult = useCallback((newResult: PostureResult): PostureResult => {
     const buf = resultsBufferRef.current;
@@ -304,16 +198,7 @@ export function usePostureMonitor() {
     setState("loading");
     setError("");
     try {
-      const standalone = isStandalone();
-      const vision = await FilesetResolver.forVisionTasks(standalone ? WASM_LOCAL : WASM_CDN);
-      landmarkerRef.current = await PoseLandmarker.createFromOptions(vision, {
-        baseOptions: {
-          modelAssetPath: standalone ? MODEL_LOCAL : MODEL_CDN,
-          delegate: "GPU",
-        },
-        runningMode: "VIDEO",
-        numPoses: 1,
-      });
+      landmarkerRef.current = await createPoseLandmarker();
 
       await startCamera();
 
@@ -555,10 +440,6 @@ export function usePostureMonitor() {
     }
     sessionStatsRef.current = null;
 
-    if (audioCtxRef.current && audioCtxRef.current.state !== "closed") {
-      void audioCtxRef.current.close();
-    }
-    audioCtxRef.current = null;
     prevLandmarksRef.current = null;
     motionBufferRef.current = [];
     handMotionBufferRef.current = [];
@@ -640,14 +521,10 @@ export function usePostureMonitor() {
     badDuration,
     cameraPhase,
     dutyCycle,
-    alertTone,
-    setAlertTone,
     alertsPaused,
     toggleAlertsPaused,
     isMoving,
     alertCooldownUntil,
-    playAlert,
-    speak,
     sessionsVersion,
     startMonitoring,
     stopMonitoring,
