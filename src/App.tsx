@@ -296,6 +296,8 @@ export default function App() {
           <CheckView
             active={tab === "check"}
             audio={audio}
+            voiceOn={voiceOn}
+            setVoiceOn={setVoiceOn}
             assessVersion={assessVersion}
             onSaved={bumpAssess}
           />

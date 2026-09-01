@@ -3133,3 +3133,103 @@ button,
 .install-dismiss:hover {
   color: var(--text-muted);
 }
+
+/* --- Live standing coach --------------------------------------------------- */
+
+.live-intro-text {
+  font-size: 13.5px;
+  color: var(--text-muted);
+  line-height: 1.6;
+  margin-bottom: 4px;
+}
+
+.coach-panel {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 18px 22px;
+  box-shadow: var(--shadow);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  transition: border-color 0.3s ease;
+}
+
+.coach-panel-neutral {
+  border-color: rgba(34, 197, 94, 0.5);
+}
+
+.coach-headline {
+  font-size: 21px;
+  font-weight: 700;
+  letter-spacing: -0.3px;
+}
+
+.coach-panel-neutral .coach-headline {
+  color: #22c55e;
+}
+
+.coach-detail {
+  font-size: 13px;
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+
+.coach-chips {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 4px;
+}
+
+.coach-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12.5px;
+  font-weight: 700;
+  padding: 7px 13px;
+  border-radius: 100px;
+  border: 1.5px solid #22c55e;
+  color: #22c55e;
+  background: rgba(34, 197, 94, 0.08);
+}
+
+.coach-chip-watch {
+  border-color: #f59e0b;
+  color: #f59e0b;
+  background: rgba(245, 158, 11, 0.08);
+}
+
+.coach-chip-high {
+  border-color: #ef4444;
+  color: #ef4444;
+  background: rgba(239, 68, 68, 0.08);
+}
+
+.coach-chip-focus {
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.25);
+}
+
+.coach-chip-val {
+  font-weight: 600;
+  opacity: 0.75;
+  font-variant-numeric: tabular-nums;
+  font-size: 11px;
+}
+
+.coach-save-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin-top: 6px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
+.coach-score {
+  font-size: 15px;
+  font-weight: 700;
+  color: #22c55e;
+}

@@ -1,7 +1,9 @@
 import { memo, useEffect, useMemo, useState } from "react";
 import { useSnapshotCamera } from "../useSnapshotCamera";
+import { useLiveCoach } from "../useLiveCoach";
 import type { AudioCues } from "../useAudioCues";
 import { FRAMING_MESSAGES } from "../apt/sideView";
+import { CHIP_ORDER } from "../apt/liveCoach";
 import {
   addPhotoCheck,
   addSelfTest,
@@ -24,11 +26,20 @@ import { IconFlip } from "./Icons";
 interface CheckViewProps {
   active: boolean;
   audio: AudioCues;
+  voiceOn: boolean;
+  setVoiceOn: (on: boolean) => void;
   onSaved: () => void;
   assessVersion: number;
 }
 
-function CheckViewInner({ active, audio, onSaved, assessVersion }: CheckViewProps) {
+function CheckViewInner({
+  active,
+  audio,
+  voiceOn,
+  setVoiceOn,
+  onSaved,
+  assessVersion,
+}: CheckViewProps) {
   const {
     videoRef,
     overlayRef,
@@ -45,9 +56,20 @@ function CheckViewInner({ active, audio, onSaved, assessVersion }: CheckViewProp
     retake,
   } = useSnapshotCamera(audio);
   const [saved, setSaved] = useState(false);
-  const [mode, setMode] = useState<"camera" | "tests">("camera");
+  const [mode, setMode] = useState<"live" | "camera" | "tests">("live");
+  const {
+    videoRef: coachVideoRef,
+    overlayRef: coachOverlayRef,
+    state: coachState,
+    ui: coachUi,
+    error: coachError,
+    start: coachStart,
+    stop: coachStop,
+    flip: coachFlip,
+  } = useLiveCoach(audio, voiceOn);
+  const [liveSaved, setLiveSaved] = useState(false);
 
-  // Leaving the tab (or switching to self-tests) releases the camera.
+  // Leaving the tab (or switching modes) releases whichever camera is on.
   // Deferred a tick so the state updates land outside the effect body.
   useEffect(() => {
     if ((!active || mode !== "camera") && camState !== "idle") {
@@ -55,6 +77,12 @@ function CheckViewInner({ active, audio, onSaved, assessVersion }: CheckViewProp
       return () => clearTimeout(id);
     }
   }, [active, mode, camState, stop]);
+  useEffect(() => {
+    if ((!active || mode !== "live") && coachState !== "idle") {
+      const id = setTimeout(coachStop, 0);
+      return () => clearTimeout(id);
+    }
+  }, [active, mode, coachState, coachStop]);
 
   const lastCheck = useMemo(() => {
     void assessVersion;
@@ -77,10 +105,16 @@ function CheckViewInner({ active, audio, onSaved, assessVersion }: CheckViewProp
 
       <div className="seg">
         <button
+          className={`seg-btn ${mode === "live" ? "seg-btn-active" : ""}`}
+          onClick={() => setMode("live")}
+        >
+          Live coach
+        </button>
+        <button
           className={`seg-btn ${mode === "camera" ? "seg-btn-active" : ""}`}
           onClick={() => setMode("camera")}
         >
-          Camera check
+          Snapshot
         </button>
         <button
           className={`seg-btn ${mode === "tests" ? "seg-btn-active" : ""}`}
@@ -89,6 +123,124 @@ function CheckViewInner({ active, audio, onSaved, assessVersion }: CheckViewProp
           Self-tests
         </button>
       </div>
+
+      {mode === "live" && (
+        <>
+          {coachState === "idle" || coachState === "error" ? (
+            <div className="check-intro">
+              <div className="check-setup-card">
+                <h3 className="metrics-title">Live standing coach</h3>
+                <p className="live-intro-text">
+                  Stand sideways to the camera and the coach talks you into a
+                  neutral stack, one correction at a time — knees, then hips,
+                  then ribs, then head. When you hit neutral, it tells you to
+                  memorize the feeling. That position is the habit that fixes a
+                  standing tilt.
+                </p>
+                <ol className="check-steps">
+                  <li>Prop your phone upright at hip height, 2–3 m (7–10 ft) away.</li>
+                  <li>Turn the volume up — the coaching is spoken.</li>
+                  <li>Stand <strong>sideways</strong>, whole body in frame, and stand how you normally stand.</li>
+                </ol>
+                {coachError && <div className="error-msg">{coachError}</div>}
+                <button
+                  className="btn btn-primary"
+                  onClick={() => {
+                    setLiveSaved(false);
+                    void coachStart();
+                  }}
+                >
+                  Start live coach
+                </button>
+                <p className="privacy-line">
+                  Analysis and voice run on your device. No video is stored or
+                  uploaded.
+                </p>
+              </div>
+            </div>
+          ) : (
+            <div className="check-camera">
+              <div className="check-camera-wrap">
+                <video ref={coachVideoRef} className="video-hidden" playsInline muted />
+                <canvas ref={coachOverlayRef} className="check-canvas" />
+                {coachState === "starting" && (
+                  <div className="check-overlay-msg">
+                    <span className="spinner" /> Starting camera…
+                  </div>
+                )}
+              </div>
+
+              {coachUi && (
+                <div
+                  className={`coach-panel ${coachUi.phase === "neutral" ? "coach-panel-neutral" : ""}`}
+                >
+                  <div className="coach-headline">{coachUi.headline}</div>
+                  <p className="coach-detail">{coachUi.detail}</p>
+                  {coachUi.findings.length > 0 && (
+                    <div className="coach-chips">
+                      {CHIP_ORDER.map(({ id, label }) => {
+                        const f = coachUi.findings.find((x) => x.id === id);
+                        const sev = f?.severity ?? "ok";
+                        return (
+                          <span
+                            key={id}
+                            className={`coach-chip coach-chip-${sev} ${coachUi.focusId === id ? "coach-chip-focus" : ""}`}
+                          >
+                            {label}
+                            <span className="coach-chip-val">{f?.value ?? "—"}</span>
+                          </span>
+                        );
+                      })}
+                    </div>
+                  )}
+                  {coachUi.phase === "neutral" && coachUi.metrics && (
+                    <div className="coach-save-row">
+                      <span className="coach-score">Score {coachUi.score}</span>
+                      {liveSaved ? (
+                        <span className="routine-done-badge">✓ Saved to progress</span>
+                      ) : (
+                        <button
+                          className="btn btn-primary"
+                          onClick={() => {
+                            if (!coachUi.metrics) return;
+                            addPhotoCheck({
+                              ts: Date.now(),
+                              metrics: coachUi.metrics,
+                              score: coachUi.score ?? 0,
+                            });
+                            setLiveSaved(true);
+                            onSaved();
+                          }}
+                        >
+                          Save as today's check-in
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <div className="check-controls">
+                <button
+                  className={`player-voice ${voiceOn ? "player-voice-on" : ""}`}
+                  onClick={() => {
+                    if (voiceOn) audio.stopSpeaking();
+                    setVoiceOn(!voiceOn);
+                  }}
+                >
+                  {voiceOn ? "Voice on" : "Voice off"}
+                </button>
+                <button className="btn btn-secondary" onClick={coachFlip} title="Flip camera">
+                  <IconFlip />
+                </button>
+                <button className="btn btn-danger" onClick={coachStop}>
+                  Stop
+                </button>
+              </div>
+            </div>
+          )}
+        </>
+      )}
 
       {mode === "camera" && (
         <>

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { PoseLandmarker, NormalizedLandmark } from "@mediapipe/tasks-vision";
 import { createPoseLandmarker } from "./poseAssets";
+import { drawCameraFrame } from "./cameraDraw";
 import {
   analyzeSideView,
   interpretMetrics,
@@ -40,12 +41,6 @@ const LIVE_INTERVAL_MS = 120;
 const CAPTURE_TARGET_FRAMES = 12;
 const CAPTURE_MIN_FRAMES = 6;
 const CAPTURE_TIMEOUT_MS = 4000;
-
-// Landmark chain drawn on the final frame: ear→shoulder→hip→knee→ankle.
-const CHAIN = {
-  left: [7, 11, 23, 25, 27],
-  right: [8, 12, 24, 26, 28],
-};
 
 interface SnapshotAudio {
   playTick: () => void;
@@ -103,62 +98,8 @@ export function useSnapshotCamera(audio: SnapshotAudio) {
     (landmarks: NormalizedLandmark[] | null, final: boolean) => {
       const video = videoRef.current;
       const canvas = overlayRef.current;
-      if (!video || !canvas || video.videoWidth === 0) return;
-      const ctx = canvas.getContext("2d");
-      if (!ctx) return;
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
-      const mirror = facingRef.current === "user";
-
-      ctx.save();
-      if (mirror) {
-        ctx.scale(-1, 1);
-        ctx.translate(-canvas.width, 0);
-      }
-      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-      ctx.restore();
-
-      if (!landmarks) return;
-      const pts = landmarks.map((lm) => ({
-        x: (mirror ? 1 - lm.x : lm.x) * canvas.width,
-        y: lm.y * canvas.height,
-        v: lm.visibility ?? 1,
-      }));
-
-      const analysis = analyzeSideView(landmarks);
-      const side = analysis.ok ? analysis.metrics.side : null;
-      const chain = side ? CHAIN[side] : null;
-
-      if (chain) {
-        // Plumb line up from the ankle — the reference the body should stack over.
-        const ankle = pts[chain[4]];
-        ctx.strokeStyle = final ? "rgba(148, 197, 255, 0.9)" : "rgba(148, 197, 255, 0.45)";
-        ctx.setLineDash([8, 8]);
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.moveTo(ankle.x, canvas.height * 0.03);
-        ctx.lineTo(ankle.x, ankle.y + 14);
-        ctx.stroke();
-        ctx.setLineDash([]);
-
-        ctx.strokeStyle = final ? "#22d3ee" : "rgba(34, 211, 238, 0.75)";
-        ctx.lineWidth = final ? 4 : 3;
-        ctx.beginPath();
-        chain.forEach((idx, i) => {
-          const p = pts[idx];
-          if (i === 0) ctx.moveTo(p.x, p.y);
-          else ctx.lineTo(p.x, p.y);
-        });
-        ctx.stroke();
-
-        for (const idx of chain) {
-          const p = pts[idx];
-          ctx.fillStyle = "#f472b6";
-          ctx.beginPath();
-          ctx.arc(p.x, p.y, final ? 7 : 5, 0, Math.PI * 2);
-          ctx.fill();
-        }
-      }
+      if (!video || !canvas) return;
+      drawCameraFrame(video, canvas, landmarks, facingRef.current === "user", final);
     },
     []
   );
