@@ -70,6 +70,17 @@ export default function App() {
   }, [theme]);
   const toggleTheme = () => setTheme((t) => (t === "dark" ? "light" : "dark"));
 
+  // Voice coach preference is shared by the routine player and the Today
+  // settings card, so it lives here.
+  const [voiceOn, setVoiceOnState] = usePersistedState<boolean>(
+    "postureguard.apt.voiceCoach",
+    true
+  );
+  const setVoiceOn = useCallback(
+    (on: boolean) => setVoiceOnState(on),
+    [setVoiceOnState]
+  );
+
   // Tab navigation via the URL hash so refresh / back keep the place.
   const [tab, setTabState] = useState<Tab>(readHashTab);
   useEffect(() => {
@@ -209,6 +220,9 @@ export default function App() {
             onChangeLevel={changeLevel}
             onStartRoutine={setPlayerLevel}
             goTo={setTab}
+            audio={audio}
+            voiceOn={voiceOn}
+            setVoiceOn={setVoiceOn}
           />
         </div>
         <div className="view-slot" hidden={tab !== "check"}>
@@ -284,7 +298,18 @@ export default function App() {
       </footer>
 
       {playerLevel && (
-        <RoutinePlayer level={playerLevel} audio={audio} onExit={handlePlayerExit} />
+        <RoutinePlayer
+          level={playerLevel}
+          audio={audio}
+          streakDays={
+            adherence.completedToday
+              ? adherence.currentStreak
+              : adherence.currentStreak + 1
+          }
+          voiceOn={voiceOn}
+          setVoiceOn={setVoiceOn}
+          onExit={handlePlayerExit}
+        />
       )}
     </div>
   );

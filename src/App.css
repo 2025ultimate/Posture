@@ -2890,3 +2890,118 @@ body {
 .learn-disclaimer strong {
   color: #f59e0b;
 }
+
+/* --- Exercise reference figures ------------------------------------------ */
+
+.ex-figure {
+  background: var(--bg-card-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 6px;
+  flex-shrink: 0;
+}
+
+.ex-figure svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.player-body .ex-figure {
+  background: transparent;
+  border: none;
+  padding: 0;
+  margin-top: 2px;
+}
+
+.micro-body {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+  margin-top: 4px;
+}
+
+.micro-body .exercise-cues {
+  margin-top: 0;
+  flex: 1;
+}
+
+@media (max-width: 480px) {
+  .micro-body {
+    flex-direction: column;
+    align-items: center;
+  }
+}
+
+.selftest-guide {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+}
+
+.selftest-guide .check-steps {
+  margin-top: 0;
+  flex: 1;
+}
+
+@media (max-width: 540px) {
+  .selftest-guide {
+    flex-direction: column;
+    align-items: center;
+  }
+  .selftest-guide .check-steps {
+    margin-top: 4px;
+  }
+}
+
+/* --- Voice coach card ------------------------------------------------------ */
+
+.voice-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px 24px;
+  box-shadow: var(--shadow);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.voice-controls {
+  display: flex;
+  align-items: flex-end;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.voice-select-label {
+  flex: 1;
+  min-width: 200px;
+}
+
+.voice-select {
+  width: 100%;
+  margin-top: 6px;
+  background: var(--bg-card-2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: var(--radius-sm);
+  padding: 9px 10px;
+  font-family: inherit;
+  font-size: 13px;
+}
+
+.voice-rate-label {
+  min-width: 150px;
+}
+
+.voice-rate {
+  width: 100%;
+  margin-top: 10px;
+  accent-color: var(--blue);
+}
+
+.voice-preview {
+  padding: 9px 18px;
+  font-size: 13px;
+}

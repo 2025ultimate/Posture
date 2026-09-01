@@ -12,6 +12,7 @@ import {
   SELF_TESTS,
 } from "../apt/assessments";
 import type { SelfTestDef } from "../apt/assessments";
+import { ExerciseFigure } from "./ExerciseFigure";
 import { IconFlip } from "./Icons";
 
 // The posture check: a guided side-view camera capture (alignment proxy
@@ -344,11 +345,14 @@ function SelfTestCard({
 
       {open && (
         <div className="selftest-body">
-          <ol className="check-steps">
-            {def.steps.map((s, i) => (
-              <li key={i}>{s}</li>
-            ))}
-          </ol>
+          <div className="selftest-guide">
+            <ExerciseFigure id={def.id} label={def.name} size={165} />
+            <ol className="check-steps">
+              {def.steps.map((s, i) => (
+                <li key={i}>{s}</li>
+              ))}
+            </ol>
+          </div>
           <p className="selftest-question">{def.question}</p>
           {def.perSide ? (
             <>

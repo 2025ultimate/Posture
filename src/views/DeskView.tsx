@@ -9,6 +9,8 @@ import type { AudioCues } from "../useAudioCues";
 import { ALERT_TONE_LABELS } from "../useAudioCues";
 import type { AlertTone } from "../useAudioCues";
 import { EXERCISES, MICRO_BREAK_IDS, setSeconds } from "../apt/exercises";
+import { breakPraiseLine } from "../apt/motivation";
+import { ExerciseFigure } from "./ExerciseFigure";
 
 // The desk companion. Honest scope for APT: a front-facing webcam can't
 // see your pelvis while you sit — what it CAN do is (1) watch the
@@ -214,7 +216,12 @@ export function DeskView({ monitor, habits, sittingCoach, audio }: DeskViewProps
 
           <SittingCoachCard sittingCoach={sittingCoach} monitorRunning={state === "running"} />
 
-          <MicroBreakCard audio={audio} onBreakDone={sittingCoach.takeBreak} monitorRunning={state === "running"} />
+          <MicroBreakCard
+            audio={audio}
+            onBreakDone={sittingCoach.takeBreak}
+            monitorRunning={state === "running"}
+            voicePraise={sittingCoach.config.mode === "voice"}
+          />
         </div>
 
         <div className="status-panel">
@@ -495,10 +502,12 @@ function MicroBreakCard({
   audio,
   onBreakDone,
   monitorRunning,
+  voicePraise,
 }: {
   audio: AudioCues;
   onBreakDone: () => void;
   monitorRunning: boolean;
+  voicePraise: boolean;
 }) {
   const [index, setIndex] = useState(0);
   const [secondsLeft, setSecondsLeft] = useState<number | null>(null);
@@ -515,6 +524,7 @@ function MicroBreakCard({
         if (s === null) return null;
         if (s <= 1) {
           audio.playStep();
+          if (voicePraise) audio.speak(breakPraiseLine());
           // A finished micro-break counts as the sitting break.
           if (monitorRunning) onBreakDone();
           return null;
@@ -526,7 +536,7 @@ function MicroBreakCard({
       });
     }, 1000);
     return () => clearTimeout(t);
-  }, [secondsLeft, audio, onBreakDone, monitorRunning, perSide, totalSeconds]);
+  }, [secondsLeft, audio, onBreakDone, monitorRunning, perSide, totalSeconds, voicePraise]);
 
   const next = () => {
     setSecondsLeft(null);
@@ -563,12 +573,15 @@ function MicroBreakCard({
             {secondsLeft !== null ? `${secondsLeft}s left` : `${totalSeconds}s`}
           </span>
         </div>
-        <ul className="exercise-cues">
-          {exercise.cues.map((c, i) => (
-            <li key={i}>{c}</li>
-          ))}
-          {perSide && <li>Switch sides at the halfway tick.</li>}
-        </ul>
+        <div className="micro-body">
+          <ExerciseFigure id={id} size={130} />
+          <ul className="exercise-cues">
+            {exercise.cues.map((c, i) => (
+              <li key={i}>{c}</li>
+            ))}
+            {perSide && <li>Switch sides at the halfway tick.</li>}
+          </ul>
+        </div>
         {secondsLeft !== null && (
           <div className="exercise-progress-bar">
             <div

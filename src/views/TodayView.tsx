@@ -16,7 +16,16 @@ import {
   optionForResult,
 } from "../apt/assessments";
 import { dayKey } from "../apt/storage";
+import { previewLine } from "../apt/motivation";
 import { useNow } from "../useNow";
+import { usePersistedState } from "../usePersistedState";
+import type { AudioCues } from "../useAudioCues";
+import {
+  resolveVoice,
+  useVoices,
+  VOICE_RATE_KEY,
+  VOICE_URI_KEY,
+} from "../voiceStore";
 import { IconCheck, IconDesk, IconFlame, IconLearn, IconPlay } from "./Icons";
 import type { Tab } from "./tabs";
 
@@ -27,6 +36,9 @@ interface TodayViewProps {
   onChangeLevel: (id: LevelId) => void;
   onStartRoutine: (level: ProgramLevel) => void;
   goTo: (tab: Tab) => void;
+  audio: AudioCues;
+  voiceOn: boolean;
+  setVoiceOn: (on: boolean) => void;
 }
 
 const LEVEL_DISMISS_KEY = "postureguard.apt.levelUpDismissed";
@@ -40,6 +52,9 @@ export const TodayView = memo(function TodayView({
   onChangeLevel,
   onStartRoutine,
   goTo,
+  audio,
+  voiceOn,
+  setVoiceOn,
 }: TodayViewProps) {
   const level = getLevel(programState.level);
   const [dismissBump, setDismissBump] = useState(0);
@@ -234,6 +249,8 @@ export const TodayView = memo(function TodayView({
         <p>{tipOfTheDay()}</p>
       </div>
 
+      <VoiceCoachCard audio={audio} voiceOn={voiceOn} setVoiceOn={setVoiceOn} />
+
       <div className="quick-grid">
         <button className="quick-tile" onClick={() => goTo("check")}>
           <IconCheck />
@@ -279,3 +296,97 @@ export const TodayView = memo(function TodayView({
     </div>
   );
 });
+
+// ---- Voice coach settings ------------------------------------------------
+
+function VoiceCoachCard({
+  audio,
+  voiceOn,
+  setVoiceOn,
+}: {
+  audio: AudioCues;
+  voiceOn: boolean;
+  setVoiceOn: (on: boolean) => void;
+}) {
+  const voices = useVoices();
+  const [uri, setUri] = usePersistedState<string | null>(VOICE_URI_KEY, null);
+  const [rate, setRate] = usePersistedState<number>(VOICE_RATE_KEY, 0.95);
+
+  const englishVoices = useMemo(() => {
+    const en = voices.filter((v) => v.lang?.toLowerCase().startsWith("en"));
+    const list = en.length > 0 ? en : voices;
+    return [...list].sort((a, b) => a.name.localeCompare(b.name));
+  }, [voices]);
+
+  const autoVoice = useMemo(() => resolveVoice(voices, null), [voices]);
+  const supported =
+    typeof window !== "undefined" && "speechSynthesis" in window;
+
+  return (
+    <div className="voice-card">
+      <div className="sitting-head">
+        <div>
+          <h3 className="metrics-title">Voice coach</h3>
+          <p className="exercises-sub">
+            Spoken cues and encouragement during routines — on-device, works
+            offline. Phone voices are usually the most natural.
+          </p>
+        </div>
+        <label className="habit-toggle" title="Enable voice coach">
+          <input
+            type="checkbox"
+            checked={voiceOn}
+            onChange={(e) => setVoiceOn(e.target.checked)}
+          />
+          <span className="habit-toggle-slider" />
+        </label>
+      </div>
+
+      {!supported && (
+        <p className="sitting-idle-note">
+          This browser doesn't support speech synthesis.
+        </p>
+      )}
+
+      {supported && voiceOn && (
+        <div className="voice-controls">
+          <label className="settings-label voice-select-label">
+            Voice
+            <select
+              className="voice-select"
+              value={uri ?? ""}
+              onChange={(e) => setUri(e.target.value === "" ? null : e.target.value)}
+            >
+              <option value="">
+                Auto{autoVoice ? ` — ${autoVoice.name}` : ""}
+              </option>
+              {englishVoices.map((v) => (
+                <option key={v.voiceURI} value={v.voiceURI}>
+                  {v.name} ({v.lang})
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="settings-label voice-rate-label">
+            Speed · {rate.toFixed(2)}×
+            <input
+              type="range"
+              min={0.75}
+              max={1.25}
+              step={0.05}
+              value={rate}
+              onChange={(e) => setRate(Number(e.target.value))}
+              className="voice-rate"
+            />
+          </label>
+          <button
+            className="btn btn-secondary voice-preview"
+            onClick={() => audio.speak(previewLine())}
+          >
+            Hear a sample
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}

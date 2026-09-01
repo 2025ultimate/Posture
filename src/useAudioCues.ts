@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { readVoicePrefs, resolveVoice } from "./voiceStore";
 
 // Shared audio for the whole app: posture alerts, habit pings, routine
 // player cues and voice coaching. Extracted from usePostureMonitor so the
@@ -156,7 +157,12 @@ export function useAudioCues(): AudioCues {
   const speak = useCallback((text: string) => {
     if (!("speechSynthesis" in window)) return;
     const utterance = new SpeechSynthesisUtterance(text);
-    utterance.rate = 0.95;
+    // Preferences are read at call time so the Today-tab voice settings
+    // apply immediately, with a quality-ranked default voice otherwise.
+    const prefs = readVoicePrefs();
+    const voice = resolveVoice(window.speechSynthesis.getVoices(), prefs.uri);
+    if (voice) utterance.voice = voice;
+    utterance.rate = prefs.rate;
     utterance.pitch = 1.0;
     utterance.volume = 1.0;
     window.speechSynthesis.cancel();

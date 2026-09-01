@@ -2,8 +2,15 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ProgramLevel, RoutineStep } from "../apt/program";
 import { buildSteps, STEP_PREP_SECONDS } from "../apt/program";
 import { CATEGORY_LABELS, schemeLabel } from "../apt/exercises";
-import { usePersistedState } from "../usePersistedState";
+import {
+  completeLine,
+  finalPushLine,
+  halfwayLine,
+  praiseLine,
+  startLine,
+} from "../apt/motivation";
 import type { AudioCues } from "../useAudioCues";
+import { ExerciseFigure } from "./ExerciseFigure";
 import { IconPause, IconPlay } from "./Icons";
 
 // Full-screen guided routine player: prep countdown → work timer for each
@@ -19,25 +26,35 @@ export interface RoutineOutcome {
 interface RoutinePlayerProps {
   level: ProgramLevel;
   audio: AudioCues;
+  /** The streak count today's completion will produce (for the send-off). */
+  streakDays: number;
+  voiceOn: boolean;
+  setVoiceOn: (on: boolean) => void;
   onExit: (outcome: RoutineOutcome | null) => void;
 }
 
 type Phase = "prep" | "work" | "finished";
 
-function RoutinePlayerInner({ level, audio, onExit }: RoutinePlayerProps) {
+function RoutinePlayerInner({
+  level,
+  audio,
+  streakDays,
+  voiceOn,
+  setVoiceOn,
+  onExit,
+}: RoutinePlayerProps) {
   const steps = useMemo(() => buildSteps(level), [level]);
   const [index, setIndex] = useState(0);
   const [phase, setPhase] = useState<Phase>("prep");
   const [secondsLeft, setSecondsLeft] = useState(STEP_PREP_SECONDS);
   const [paused, setPaused] = useState(false);
   const [skipped, setSkipped] = useState(0);
-  const [voiceOn, setVoiceOn] = usePersistedState<boolean>(
-    "postureguard.apt.voiceCoach",
-    true
-  );
   const [finishedMinutes, setFinishedMinutes] = useState(1);
   const startedAtRef = useRef(0);
   const announcedRef = useRef(-1);
+  // Set when a step was completed (not skipped) so the next announcement
+  // opens with a word of praise.
+  const praiseNextRef = useRef(false);
 
   useEffect(() => {
     startedAtRef.current = Date.now();
@@ -75,15 +92,23 @@ function RoutinePlayerInner({ level, audio, onExit }: RoutinePlayerProps) {
     };
   }, []);
 
-  // Announce the step once, at the start of its prep phase.
+  // Announce the step once, at the start of its prep phase — with a warm
+  // opener on the first step and a word of praise after a completed one.
   useEffect(() => {
     if (!step || phase !== "prep" || announcedRef.current === index) return;
     announcedRef.current = index;
     if (voiceOn) {
+      const opener =
+        index === 0 ? `${startLine()} ` : praiseNextRef.current ? `${praiseLine()} ` : "";
+      praiseNextRef.current = false;
       const sideText = step.side ? `, ${step.side} side` : "";
       const setText =
         step.totalSets > 1 ? `, set ${step.set} of ${step.totalSets}` : "";
-      audio.speak(`${step.exercise.name}${sideText}${setText}. ${step.exercise.cues[0]}`);
+      audio.speak(
+        `${opener}${step.exercise.name}${sideText}${setText}. ${step.exercise.cues[0]}`
+      );
+    } else {
+      praiseNextRef.current = false;
     }
   }, [step, phase, index, voiceOn, audio]);
 
@@ -91,29 +116,38 @@ function RoutinePlayerInner({ level, audio, onExit }: RoutinePlayerProps) {
     (wasSkipped: boolean) => {
       audio.stopSpeaking();
       if (wasSkipped) setSkipped((s) => s + 1);
+      else praiseNextRef.current = true;
       if (index + 1 >= total) {
         setFinishedMinutes(
           Math.max(1, Math.round((Date.now() - startedAtRef.current) / 60000))
         );
         setPhase("finished");
         audio.playSuccess();
-        if (voiceOn) audio.speak("Routine complete. Well done.");
+        if (voiceOn) audio.speak(completeLine(streakDays));
         return;
       }
       setIndex(index + 1);
       setPhase("prep");
       setSecondsLeft(STEP_PREP_SECONDS);
     },
-    [audio, index, total, voiceOn]
+    [audio, index, total, voiceOn, streakDays]
   );
 
-  // Core ticker.
+  // Core ticker — with mid-hold encouragement on longer steps.
   useEffect(() => {
     if (paused || phase === "finished" || !step) return;
     const id = setTimeout(() => {
       if (secondsLeft > 1) {
+        const next = secondsLeft - 1;
+        if (phase === "work" && voiceOn) {
+          if (step.workSeconds >= 45 && next === Math.ceil(step.workSeconds / 2)) {
+            audio.speak(halfwayLine());
+          } else if (step.workSeconds >= 25 && next === 7) {
+            audio.speak(finalPushLine());
+          }
+        }
         if (phase === "work" && secondsLeft <= 4) audio.playTick();
-        setSecondsLeft(secondsLeft - 1);
+        setSecondsLeft(next);
         return;
       }
       if (phase === "prep") {
@@ -125,7 +159,7 @@ function RoutinePlayerInner({ level, audio, onExit }: RoutinePlayerProps) {
       }
     }, 1000);
     return () => clearTimeout(id);
-  }, [paused, phase, secondsLeft, step, advance, audio]);
+  }, [paused, phase, secondsLeft, step, advance, audio, voiceOn]);
 
   const goBack = () => {
     audio.stopSpeaking();
@@ -244,6 +278,8 @@ function RoutinePlayerInner({ level, audio, onExit }: RoutinePlayerProps) {
           {schemeLabel(step.exercise.scheme)}
           {step.totalSets > 1 && ` — set ${step.set} of ${step.totalSets}`}
         </p>
+
+        <ExerciseFigure id={step.exercise.id} size={190} />
 
         <div className={`player-timer ${phase === "prep" ? "player-timer-prep" : ""}`}>
           <div className="player-timer-ring">

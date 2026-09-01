@@ -66,6 +66,11 @@ Routines completed, streaks, check-in results, self-tests, sitting breaks, desk-
 
 The app suggests moving up after ~2 weeks and 10 completed days on a level. Every stretch is cued with the detail that matters most for APT (*tuck the pelvis first*), and every core exercise with the giveaway to avoid (*the low back never leaves the floor*).
 
+Two things make the routines easy to follow:
+
+- **Reference diagrams for every exercise** (and both self-tests) — side-view figures with the target muscle highlighted and the key motion arrowed. They're drawn in code, not AI-generated or stock photos, so every joint angle is deliberate and the form shown is the form meant.
+- **A voice coach with real encouragement** — spoken setup cues, halfway and final-stretch motivation on longer holds, praise between steps, and a streak-aware send-off. On the Today tab you can pick any voice installed on your device (phones usually ship excellent neural voices), set the speaking pace, and preview it. All of it runs on-device via the Web Speech API — free, offline, nothing sent anywhere.
+
 At the desk, the sitting coach defaults to a nudge every 40 minutes of continuous sitting, and the micro-break library (standing hip flexor opener, wall tilts, glute resets, a two-minute walk) undoes the position between routines.
 
 ## Desk features carried forward

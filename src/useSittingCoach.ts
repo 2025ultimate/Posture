@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePersistedState } from "./usePersistedState";
 import { addBreak, loadBreaks } from "./apt/assessments";
+import { sittingNudgeLine } from "./apt/motivation";
 import { dayKey } from "./apt/storage";
 import type { ActivityContext } from "./postureAnalysis";
 
@@ -137,7 +138,7 @@ export function useSittingCoach(inputs: SittingCoachInputs) {
         if (!alertsPaused) {
           const minutes = Math.round(seatedMsRef.current / 60000);
           playAlert();
-          const line = `You've been sitting for ${minutes} minutes. Stand up for two minutes and open up those hip flexors.`;
+          const line = sittingNudgeLine(minutes);
           if (cfg.mode === "voice") {
             setTimeout(() => speak(line), 400);
           }
