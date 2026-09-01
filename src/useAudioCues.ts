@@ -71,6 +71,15 @@ export function useAudioCues(): AudioCues {
     []
   );
 
+  // Haptic feedback on phones — silently a no-op where unsupported.
+  const vibrate = useCallback((pattern: number | number[]) => {
+    try {
+      navigator.vibrate?.(pattern);
+    } catch {
+      // ignore
+    }
+  }, []);
+
   const tone = useCallback(
     (
       ctx: AudioContext,
@@ -99,6 +108,7 @@ export function useAudioCues(): AudioCues {
 
   const playAlert = useCallback(() => {
     const ctx = ensureCtx();
+    vibrate([90, 50, 90]);
     switch (alertToneRef.current) {
       case "beep":
         tone(ctx, 880, 0.25, 0.5);
@@ -133,7 +143,7 @@ export function useAudioCues(): AudioCues {
         tone(ctx, 300, 0.08, 0.45, "square", 0.3);
         break;
     }
-  }, [ensureCtx, tone]);
+  }, [ensureCtx, tone, vibrate]);
 
   const playTick = useCallback(() => {
     const ctx = ensureCtx();
@@ -142,17 +152,19 @@ export function useAudioCues(): AudioCues {
 
   const playStep = useCallback(() => {
     const ctx = ensureCtx();
+    vibrate(35);
     tone(ctx, 660, 0.14, 0.35);
     tone(ctx, 880, 0.2, 0.3, "sine", 0.12);
-  }, [ensureCtx, tone]);
+  }, [ensureCtx, tone, vibrate]);
 
   const playSuccess = useCallback(() => {
     const ctx = ensureCtx();
+    vibrate([50, 40, 50, 40, 140]);
     tone(ctx, 523, 0.18, 0.4);
     tone(ctx, 659, 0.18, 0.4, "sine", 0.16);
     tone(ctx, 784, 0.3, 0.45, "sine", 0.32);
     tone(ctx, 1047, 0.5, 0.35, "sine", 0.48);
-  }, [ensureCtx, tone]);
+  }, [ensureCtx, tone, vibrate]);
 
   const speak = useCallback((text: string) => {
     if (!("speechSynthesis" in window)) return;

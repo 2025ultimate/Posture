@@ -17,6 +17,12 @@ import {
 } from "../apt/assessments";
 import { dayKey } from "../apt/storage";
 import { previewLine } from "../apt/motivation";
+import {
+  dismissInstall,
+  isInstallDismissed,
+  isIOS,
+  useInstallPrompt,
+} from "../useInstallPrompt";
 import { useNow } from "../useNow";
 import { usePersistedState } from "../usePersistedState";
 import type { AudioCues } from "../useAudioCues";
@@ -225,6 +231,8 @@ export const TodayView = memo(function TodayView({
         </div>
       </div>
 
+      <InstallCard />
+
       {(assessmentNudge || latestFindings.length > 0) && (
         <div className="coach-card">
           <h3 className="metrics-title">From your check-ins</h3>
@@ -387,6 +395,56 @@ function VoiceCoachCard({
           </button>
         </div>
       )}
+    </div>
+  );
+}
+
+// ---- Install-to-home-screen card -----------------------------------------
+
+function InstallCard() {
+  const { canPrompt, standalone, install } = useInstallPrompt();
+  const [dismissBump, setDismissBump] = useState(0);
+
+  const dismissed = useMemo(() => {
+    void dismissBump;
+    return isInstallDismissed();
+  }, [dismissBump]);
+
+  const showIOSHint = !canPrompt && isIOS();
+  if (standalone || dismissed || (!canPrompt && !showIOSHint)) return null;
+
+  return (
+    <div className="install-card">
+      <div className="install-card-body">
+        <strong>Put PostureGuard on your home screen</strong>
+        <p>
+          Full-screen app, works offline, opens in one tap — routines and
+          check-ins feel like a native app.
+        </p>
+        {showIOSHint && (
+          <p className="install-ios-hint">
+            In Safari: tap <strong>Share</strong> → <strong>Add to Home
+            Screen</strong>.
+          </p>
+        )}
+      </div>
+      <div className="install-card-actions">
+        {canPrompt && (
+          <button className="btn btn-primary" onClick={() => void install()}>
+            Install app
+          </button>
+        )}
+        <button
+          className="install-dismiss"
+          onClick={() => {
+            dismissInstall();
+            setDismissBump((b) => b + 1);
+          }}
+          aria-label="Dismiss install suggestion"
+        >
+          Not now
+        </button>
+      </div>
     </div>
   );
 }

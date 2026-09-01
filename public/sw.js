@@ -9,7 +9,7 @@
 //   - Nothing else is ever cached, and the worker makes no requests the
 //     page wouldn't make itself.
 
-const CACHE = "postureguard-v1";
+const CACHE = "postureguard-v2";
 
 const ALLOWED_HOSTS = [
   self.location.host,
@@ -22,7 +22,15 @@ self.addEventListener("install", (event) => {
   event.waitUntil(
     caches
       .open(CACHE)
-      .then((cache) => cache.addAll(["./", "./manifest.webmanifest"]))
+      .then((cache) =>
+        cache.addAll([
+          "./",
+          "./manifest.webmanifest",
+          "./pwa-192.png",
+          "./pwa-512.png",
+          "./apple-touch-icon.png",
+        ])
+      )
       .catch(() => {})
   );
 });

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePostureMonitor } from "./usePostureMonitor";
 import { useHabitReminders } from "./useHabitReminders";
 import { useAudioCues } from "./useAudioCues";
@@ -67,6 +67,11 @@ export default function App() {
   const [theme, setTheme] = usePersistedState<Theme>("postureguard.theme", "dark");
   useEffect(() => {
     document.documentElement.setAttribute("data-theme", theme);
+    // Keep the Android status bar / task-switcher color in sync with the
+    // in-app theme when running as an installed PWA.
+    document
+      .querySelector('meta[name="theme-color"]')
+      ?.setAttribute("content", theme === "dark" ? "#0f172a" : "#f6f8fb");
   }, [theme]);
   const toggleTheme = () => setTheme((t) => (t === "dark" ? "light" : "dark"));
 
@@ -81,16 +86,33 @@ export default function App() {
     [setVoiceOnState]
   );
 
-  // Tab navigation via the URL hash so refresh / back keep the place.
+  // Tab navigation via the URL hash, tuned for the Android back button in
+  // an installed PWA: switching tabs REPLACES the history entry (no long
+  // back-chain of tab flips), except leaving Today pushes exactly one
+  // entry — so from any tab, back returns to Today, and back from Today
+  // exits the app, which is what Android users expect.
   const [tab, setTabState] = useState<Tab>(readHashTab);
+  const tabRef = useRef(tab);
   useEffect(() => {
+    tabRef.current = tab;
+  }, [tab]);
+
+  const setTab = useCallback((t: Tab) => {
+    const prev = tabRef.current;
+    if (prev === t) return;
+    if (prev === "today" && t !== "today") {
+      window.history.pushState({ tab: t }, "", `#${t}`);
+    } else {
+      window.history.replaceState({ tab: t }, "", `#${t}`);
+    }
+    setTabState(t);
+  }, []);
+
+  useEffect(() => {
+    // Manual URL edits still work (replace/pushState don't fire this).
     const onHash = () => setTabState(readHashTab());
     window.addEventListener("hashchange", onHash);
     return () => window.removeEventListener("hashchange", onHash);
-  }, []);
-  const setTab = useCallback((t: Tab) => {
-    window.location.hash = t;
-    setTabState(t);
   }, []);
 
   // Program state + change counters that tell views to re-read storage.
@@ -114,6 +136,20 @@ export default function App() {
   const bumpAssess = useCallback(() => setAssessVersion((v) => v + 1), []);
 
   const [playerLevel, setPlayerLevel] = useState<ProgramLevel | null>(null);
+  const playerLevelRef = useRef<ProgramLevel | null>(null);
+  useEffect(() => {
+    playerLevelRef.current = playerLevel;
+  }, [playerLevel]);
+  // History bookkeeping so the Android back button closes the routine
+  // player (with a confirm) instead of exiting the app mid-routine.
+  const playerPushedRef = useRef(false);
+  const ignorePopRef = useRef(false);
+
+  const openRoutine = useCallback((level: ProgramLevel) => {
+    setPlayerLevel(level);
+    window.history.pushState({ overlay: "player" }, "");
+    playerPushedRef.current = true;
+  }, []);
 
   const handlePlayerExit = useCallback(
     (outcome: RoutineOutcome | null) => {
@@ -127,9 +163,40 @@ export default function App() {
         setProgramVersion((v) => v + 1);
       }
       setPlayerLevel(null);
+      // Consume the history entry the player pushed, without treating the
+      // resulting popstate as a back-press.
+      if (playerPushedRef.current) {
+        playerPushedRef.current = false;
+        ignorePopRef.current = true;
+        window.history.back();
+      }
     },
     [playerLevel]
   );
+
+  useEffect(() => {
+    const onPop = () => {
+      if (ignorePopRef.current) {
+        ignorePopRef.current = false;
+        return;
+      }
+      if (playerLevelRef.current) {
+        // System back while the routine player is open: its entry has
+        // already been popped. Confirm, and re-push to stay if declined.
+        playerPushedRef.current = false;
+        if (window.confirm("Leave the routine? Progress today won't be saved.")) {
+          setPlayerLevel(null);
+        } else {
+          window.history.pushState({ overlay: "player" }, "");
+          playerPushedRef.current = true;
+        }
+        return;
+      }
+      setTabState(readHashTab());
+    };
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, []);
 
   const monitoringLive = monitor.state === "running";
 
@@ -218,7 +285,7 @@ export default function App() {
             adherence={adherence}
             assessVersion={assessVersion}
             onChangeLevel={changeLevel}
-            onStartRoutine={setPlayerLevel}
+            onStartRoutine={openRoutine}
             goTo={setTab}
             audio={audio}
             voiceOn={voiceOn}

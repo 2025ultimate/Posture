@@ -81,8 +81,20 @@ The original PostureGuard desk monitor is all still here: real-time neck/shoulde
 
 Open **[https://nopain.gonav.tech](https://nopain.gonav.tech)** in any modern browser.
 
-- **On your phone:** use the browser menu → *Add to Home Screen* to install it as an app. Do the daily routine and the side-view checks here.
+- **On your phone:** install it as an app. Do the daily routine and the side-view checks here.
 - **At your desk:** keep it open in a tab (or build the desktop app) and start Desk guard when you sit down.
+
+### Installing on Android (the seamless way)
+
+PostureGuard is a full PWA, so on Android/Chrome it installs and behaves like a native app:
+
+- Tap **Install app** when the card appears on the Today tab (or use Chrome's menu → *Install app*). Chrome shows a rich install sheet with real screenshots.
+- Once installed: it opens **full-screen** from its own home-screen icon, the **status bar matches your light/dark theme**, and it **works fully offline** after the first run (the pose model is cached too).
+- **Long-press the icon** for shortcuts straight into Today's routine, the Posture check, or Desk guard.
+- The **system back button behaves like a native app**: from any tab it returns to Today, and mid-routine it asks before leaving instead of dumping you out of the app.
+- Alerts and routine transitions come with **haptic feedback**, pull-to-refresh is disabled so a stray swipe can't reload a live session, and tapping the icon again focuses the running app instead of opening a duplicate.
+
+On iPhone/iPad: Safari → **Share** → **Add to Home Screen** (the Today card shows the same hint).
 
 ## Not medical advice
 

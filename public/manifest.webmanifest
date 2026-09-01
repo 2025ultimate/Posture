@@ -3,13 +3,18 @@
   "short_name": "PostureGuard",
   "description": "Fix anterior pelvic tilt: daily guided routines, side-view posture checks, and a sitting-break coach. Everything runs on your device — no account, no cloud.",
   "id": "postureguard",
+  "lang": "en",
   "start_url": ".",
   "scope": ".",
   "display": "standalone",
+  "display_override": ["standalone", "minimal-ui"],
   "orientation": "any",
   "background_color": "#0f172a",
   "theme_color": "#0f172a",
   "categories": ["health", "fitness", "lifestyle"],
+  "launch_handler": {
+    "client_mode": "navigate-existing"
+  },
   "icons": [
     {
       "src": "pwa-192.png",
@@ -26,6 +31,66 @@
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Start today's routine",
+      "short_name": "Routine",
+      "description": "Open the daily corrective routine",
+      "url": "./#today",
+      "icons": [{ "src": "pwa-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Posture check",
+      "short_name": "Check",
+      "description": "Side-view camera check and self-tests",
+      "url": "./#check",
+      "icons": [{ "src": "pwa-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Desk guard",
+      "short_name": "Desk",
+      "description": "Sitting-break coach and live posture",
+      "url": "./#desk",
+      "icons": [{ "src": "pwa-192.png", "sizes": "192x192" }]
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "screens/phone-today.png",
+      "sizes": "390x844",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Daily routine, streak and coach on the Today tab"
+    },
+    {
+      "src": "screens/phone-player.png",
+      "sizes": "390x844",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Guided routine player with animated form diagrams"
+    },
+    {
+      "src": "screens/phone-check.png",
+      "sizes": "390x844",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Side-view posture check and self-tests"
+    },
+    {
+      "src": "screens/phone-desk.png",
+      "sizes": "390x844",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Desk guard with the sitting-break coach"
+    },
+    {
+      "src": "screens/desktop-today.png",
+      "sizes": "1280x800",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "PostureGuard on desktop"
     }
   ]
 }
