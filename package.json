@@ -16,6 +16,7 @@
     "build:electron-main": "tsc --project electron/tsconfig.json",
     "build:all": "npm run bundle-assets && npm run build && npm run build:electron-main",
     "bundle-assets": "node scripts/copy-wasm.mjs && node scripts/download-model.mjs",
+    "icons": "node scripts/generate-icons.mjs",
     "package": "npm run build:all && electron-builder",
     "package:mac": "npm run build:all && electron-builder --mac",
     "package:win": "npm run build:all && electron-builder --win",
