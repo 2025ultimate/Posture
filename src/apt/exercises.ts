@@ -388,6 +388,35 @@ export const EXERCISES: Record<string, Exercise> = Object.fromEntries(
         "Eyes level — this is a glide back, not a nod down.",
       ],
     }),
+    EX({
+      id: "microSeatedTilt",
+      videoQuery: "seated pelvic tilt exercise chair",
+      name: "Seated pelvic rocking",
+      category: "micro",
+      targets: "Pelvis awareness — without leaving the chair",
+      scheme: { kind: "reps", reps: 8, holdSeconds: 3 },
+      cues: [
+        "Sit tall on your sit bones, feet flat, off the backrest.",
+        "Roll the pelvis back so the low back rounds gently — hold 3 seconds.",
+        "Roll forward into a slight arch, then settle in the middle: that's neutral sitting.",
+        "Small and smooth — the chair gives you the feedback.",
+      ],
+      mistake: "Moving the chest instead of the pelvis — the rock starts at the sit bones.",
+    }),
+    EX({
+      id: "microSeatedGlutes",
+      videoQuery: "seated glute squeeze exercise",
+      name: "Seated glute squeezes",
+      category: "micro",
+      targets: "Glute activation in the chair",
+      scheme: { kind: "reps", reps: 8, holdSeconds: 5 },
+      cues: [
+        "Sit tall, feet planted.",
+        "Squeeze both glutes hard — you'll rise a few millimetres.",
+        "Hold 5 seconds while breathing, release slowly.",
+        "Wakes up the exact muscles sitting switches off.",
+      ],
+    }),
   ].map((e) => [e.id, e])
 );
 
@@ -397,7 +426,9 @@ export function getExercise(id: string): Exercise {
   return e;
 }
 
-/** Micro-break rotation used by the desk sitting coach. */
+/** Micro-break rotation used by the desk sitting coach. Standing resets
+ * lead (getting out of the chair is the point); the seated drills follow
+ * for moments a stand-up genuinely isn't possible. */
 export const MICRO_BREAK_IDS = [
   "microStand",
   "microHipFlexor",
@@ -405,4 +436,6 @@ export const MICRO_BREAK_IDS = [
   "microWalk",
   "microChest",
   "microChinTuck",
+  "microSeatedTilt",
+  "microSeatedGlutes",
 ];

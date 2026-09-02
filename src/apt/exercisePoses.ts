@@ -467,6 +467,58 @@ export const POSES: Record<string, Pose> = {
     },
   },
 
+  microSeatedTilt: {
+    ground: true,
+    rects: [{ x: 26, y: 60, w: 32, h: 5 }],
+    propLines: [
+      [{ x: 30, y: 65 }, { x: 30, y: 88 }],
+      [{ x: 54, y: 65 }, { x: 54, y: 88 }],
+      [{ x: 27, y: 58 }, { x: 23, y: 30 }],
+    ],
+    head: { x: 49, y: 21 },
+    chains: [
+      [{ x: 44, y: 56 }, { x: 44, y: 42 }, { x: 48, y: 28 }],
+      [{ x: 47, y: 34 }, { x: 57, y: 48 }],
+      [{ x: 44, y: 56 }, { x: 64, y: 57 }],
+      [{ x: 64, y: 57 }, { x: 64, y: 88 }],
+    ],
+    glow: { x: 42, y: 52, r: 5.5, kind: "strength" },
+    arrows: [[{ x: 34, y: 50 }, { x: 31, y: 44 }, { x: 35, y: 38 }]],
+    // Rocks between a slight arch (start) and the gentle tuck (active).
+    anim: {
+      chains: { 0: [{ x: 44, y: 56 }, { x: 50, y: 42 }, { x: 46, y: 28 }] },
+      head: { x: 47, y: 21 },
+      durMs: 2800,
+    },
+  },
+  microSeatedGlutes: {
+    ground: true,
+    rects: [{ x: 26, y: 60, w: 32, h: 5 }],
+    propLines: [
+      [{ x: 30, y: 65 }, { x: 30, y: 88 }],
+      [{ x: 54, y: 65 }, { x: 54, y: 88 }],
+      [{ x: 27, y: 58 }, { x: 23, y: 30 }],
+    ],
+    head: { x: 48, y: 19 },
+    chains: [
+      [{ x: 44, y: 54 }, { x: 47, y: 26 }],
+      [{ x: 46, y: 32 }, { x: 56, y: 46 }],
+      [{ x: 44, y: 54 }, { x: 64, y: 57 }],
+      [{ x: 64, y: 57 }, { x: 64, y: 88 }],
+    ],
+    glow: { x: 40, y: 56, r: 6, kind: "strength" },
+    arrows: [[{ x: 35, y: 62 }, { x: 32, y: 55 }, { x: 36, y: 49 }]],
+    // The squeeze lifts you a few millimetres — sit taller at the hold.
+    anim: {
+      chains: {
+        0: [{ x: 44, y: 56 }, { x: 47, y: 28 }],
+        2: [{ x: 44, y: 56 }, { x: 64, y: 58 }],
+      },
+      head: { x: 48, y: 21 },
+      durMs: 2400,
+    },
+  },
+
   // ---- Self-tests --------------------------------------------------------
   wall: {
     ground: true,
